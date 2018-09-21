@@ -26,6 +26,7 @@ import (
 	"github.com/juju/juju/agent"
 	"github.com/juju/juju/agent/agentbootstrap"
 	agenttools "github.com/juju/juju/agent/tools"
+	"github.com/juju/juju/caas"
 	"github.com/juju/juju/cloudconfig/instancecfg"
 	agentcmd "github.com/juju/juju/cmd/jujud/agent"
 	"github.com/juju/juju/environs"
@@ -133,13 +134,38 @@ func (c *BootstrapCommand) Run(_ *cmd.Context) error {
 	if err != nil {
 		return errors.Trace(err)
 	}
-	env, err := EnvironsNew(environs.OpenParams{
-		Cloud:  cloudSpec,
-		Config: args.ControllerModelConfig,
-	})
+	// env, err := EnvironsNew(environs.OpenParams{
+	// 	Cloud:  cloudSpec,
+	// 	Config: args.ControllerModelConfig,
+	// })
+	// if err != nil {
+	// 	return errors.Annotate(err, "new environ")
+	// }
+
+	var env environs.GenericEnviron
+
+	p, err := environs.Provider(args.ControllerCloud.Type)
 	if err != nil {
-		return errors.Annotate(err, "new environ")
+		return errors.Trace(err)
 	}
+	if args.ControllerCloud.Type == "kubernetes" {
+		env, err = caas.Open(p, environs.OpenParams{
+			Cloud:  cloudSpec,
+			Config: args.ControllerModelConfig,
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+	} else {
+		env, err = environs.Open(p, environs.OpenParams{
+			Cloud:  cloudSpec,
+			Config: args.ControllerModelConfig,
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+	}
+
 	newConfigAttrs := make(map[string]interface{})
 
 	// // Check to see if a newer agent version has been requested
