@@ -47,6 +47,7 @@ import (
 	"github.com/juju/juju/cert"
 	"github.com/juju/juju/cmd/jujud/agent/machine"
 	"github.com/juju/juju/cmd/jujud/agent/model"
+	// "github.com/juju/juju/cmd/jujud/bootstrap"
 	"github.com/juju/juju/cmd/jujud/reboot"
 	cmdutil "github.com/juju/juju/cmd/jujud/util"
 	"github.com/juju/juju/container"
@@ -84,7 +85,7 @@ import (
 )
 
 var (
-	logger           = loggo.GetLogger("juju.cmd.jujud")
+	// logger           = loggo.GetLogger("juju.cmd.jujud")
 	jujuRun          = paths.MustSucceed(paths.JujuRun(series.MustHostSeries()))
 	jujuDumpLogs     = paths.MustSucceed(paths.JujuDumpLogs(series.MustHostSeries()))
 	jujuIntrospect   = paths.MustSucceed(paths.JujuIntrospect(series.MustHostSeries()))
@@ -102,6 +103,11 @@ var (
 	caasModelManifolds = model.CAASManifolds
 	iaasModelManifolds = model.IAASManifolds
 	machineManifolds   = machine.Manifolds
+
+	// isFirstRun indicates if it is the first run of a new controller which is mostly used
+	// for checking if bootstrap-state should run or not
+	// Rework here for HA!!!!
+	isFirstRun = false
 )
 
 // Variable to override in tests, default is true
@@ -131,6 +137,8 @@ func init() {
 type AgentInitializer interface {
 	AddFlags(*gnuflag.FlagSet)
 	CheckArgs([]string) error
+	// DataDir returns the directory where this agent should store its data.
+	DataDir() string
 }
 
 // AgentConfigWriter encapsulates disk I/O operations with the agent
@@ -159,6 +167,7 @@ func NewMachineAgentCmd(
 		machineAgentFactory: machineAgentFactory,
 		agentInitializer:    agentInitializer,
 		currentConfig:       configFetcher,
+		logToStdErr:         true,
 	}
 }
 
@@ -173,7 +182,6 @@ type machineAgentCmd struct {
 
 	// This group is for debugging purposes.
 	logToStdErr bool
-
 	// The following are set via command-line flags.
 	machineId string
 }
@@ -199,8 +207,8 @@ func (a *machineAgentCmd) Init(args []string) error {
 		return nil
 	}
 
-	err := a.currentConfig.ReadConfig(names.NewMachineTag(a.machineId).String())
-	if err != nil {
+	// err := a.currentConfig.ReadConfig(names.NewMachineTag(a.machineId).String())
+	if err := a.ensureThenReadAgentConfig(); err != nil {
 		return errors.Annotate(err, "cannot read agent configuration")
 	}
 
@@ -216,8 +224,45 @@ func (a *machineAgentCmd) Init(args []string) error {
 	return nil
 }
 
+func (a *machineAgentCmd) Tag() names.Tag {
+	return names.NewMachineTag(a.machineId)
+}
+
+func (a *machineAgentCmd) ensureThenReadAgentConfig() error {
+	err := a.currentConfig.ReadConfig(a.Tag().String())
+	if os.IsNotExist(errors.Cause(err)) {
+		// this needs to be enhanced later for k8s HA mode
+		isFirstRun = true
+
+		templateFile := filepath.Join(agent.Dir(a.agentInitializer.DataDir(), a.Tag()), TemplateAgentConfigFileName)
+		if err := copyFile(agent.ConfigPath(a.agentInitializer.DataDir(), a.Tag()), templateFile); err != nil {
+			logger.Errorf("copying agent config file template: %v", err)
+			return errors.Trace(err)
+		}
+	} else if err != nil {
+		return errors.Annotate(err, "cannot read agent configuration")
+	}
+	return a.currentConfig.ReadConfig(a.Tag().String())
+}
+
 // Run instantiates a MachineAgent and runs it.
 func (a *machineAgentCmd) Run(c *cmd.Context) error {
+	if err := a.ensureThenReadAgentConfig(); err != nil {
+		return errors.Annotate(err, "cannot read agent configuration")
+	}
+
+	if isFirstRun {
+		// Run bootstrap-state
+		bootstrapCmd := &BootstrapCommand{
+			AgentConf: NewAgentConf(a.agentInitializer.DataDir()),
+		}
+		// bootstrapCmd := NewBootstrapCommand()
+
+		// bootstrapCmd.AgentConf = a.currentConfig
+		bootstrapCmd.BootstrapParamsFile = filepath.Join(a.agentInitializer.DataDir(), "bootstrap-params")
+		logger.Criticalf("bootstrapCmd.Run(c) -------------------------> %q", a.agentInitializer.DataDir())
+		bootstrapCmd.Run(c)
+	}
 	machineAgent, err := a.machineAgentFactory(a.machineId)
 	if err != nil {
 		return errors.Trace(err)
@@ -297,9 +342,6 @@ func NewMachineAgent(
 		mongoTxnCollector:           mongometrics.NewTxnCollector(),
 		mongoDialCollector:          mongometrics.NewDialCollector(),
 		preUpgradeSteps:             preUpgradeSteps,
-	}
-	if err := a.registerPrometheusCollectors(); err != nil {
-		return nil, errors.Trace(err)
 	}
 	return a, nil
 }
@@ -456,13 +498,18 @@ func (a *MachineAgent) Run(*cmd.Context) (err error) {
 	// have dependencies on a central hub worker.
 	a.centralHub = centralhub.New(a.Tag().(names.MachineTag))
 
-	// // Before doing anything else, we need to make sure the certificate generated for
-	// // use by mongo to validate controller connections is correct. This needs to be done
-	// // before any possible restart of the mongo service.
-	// // See bug http://pad.lv/1434680
-	// if err := a.AgentConfigWriter.ChangeConfig(upgradeCertificateDNSNames); err != nil {
-	// 	return errors.Annotate(err, "error upgrading server certificate")
-	// }
+	// Before doing anything else, we need to make sure the certificate generated for
+	// use by mongo to validate controller connections is correct. This needs to be done
+	// before any possible restart of the mongo service.
+	// See bug http://pad.lv/1434680
+	if err := a.AgentConfigWriter.ChangeConfig(upgradeCertificateDNSNames); err != nil {
+		return errors.Annotate(err, "error upgrading server certificate")
+	}
+
+	// moved from NewMachineAgent here coz the agent config could not be ready yet there
+	if err := a.registerPrometheusCollectors(); err != nil {
+		return errors.Trace(err)
+	}
 
 	agentConfig := a.CurrentConfig()
 	machineLock, err := machinelock.New(machinelock.Config{
@@ -755,6 +802,7 @@ func (a *MachineAgent) setControllerNetworkConfig(apiConn api.Connection) error 
 
 // Restart restarts the agent's service.
 func (a *MachineAgent) Restart() error {
+	// IAAS ONLY!
 	name := a.CurrentConfig().Value(agent.AgentServiceName)
 	return service.Restart(name)
 }

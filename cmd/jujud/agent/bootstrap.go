@@ -1,7 +1,7 @@
 // Copyright 2012, 2013 Canonical Ltd.
 // Licensed under the AGPLv3, see LICENCE file for details.
 
-package main
+package agent
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	agenttools "github.com/juju/juju/agent/tools"
 	"github.com/juju/juju/caas"
 	"github.com/juju/juju/cloudconfig/instancecfg"
-	agentcmd "github.com/juju/juju/cmd/jujud/agent"
+	// agentcmd "github.com/juju/juju/cmd/jujud/agent"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/imagemetadata"
 	"github.com/juju/juju/environs/simplestreams"
@@ -56,7 +56,7 @@ const adminUserName = "admin"
 // BootstrapCommand represents a jujud bootstrap command.
 type BootstrapCommand struct {
 	cmd.CommandBase
-	agentcmd.AgentConf
+	AgentConf
 	BootstrapParamsFile string
 	Timeout             time.Duration
 }
@@ -64,7 +64,7 @@ type BootstrapCommand struct {
 // NewBootstrapCommand returns a new BootstrapCommand that has been initialized.
 func NewBootstrapCommand() *BootstrapCommand {
 	return &BootstrapCommand{
-		AgentConf: agentcmd.NewAgentConf(""),
+		AgentConf: NewAgentConf(""),
 	}
 }
 
@@ -276,12 +276,24 @@ func (c *BootstrapCommand) Run(_ *cmd.Context) error {
 	if err := c.startMongo(addrs, agentConfig); err != nil {
 		return errors.Annotate(err, "failed to start mongo")
 	}
-
-	controllerModelCfg, err := env.Config().Apply(newConfigAttrs)
-	if err != nil {
-		return errors.Annotate(err, "failed to update model config")
+	if args.ControllerCloud.Type == "kubernetes" {
+		cfg, err := p.PrepareConfig(environs.PrepareConfigParams{
+			Cloud:  cloudSpec,
+			Config: args.ControllerModelConfig,
+		})
+		if err != nil {
+			return errors.Trace(err)
+		}
+		args.ControllerModelConfig, err = cfg.Apply(newConfigAttrs)
+		if err != nil {
+			return errors.Annotate(err, "failed to update model config")
+		}
+	} else {
+		args.ControllerModelConfig, err = env.Config().Apply(newConfigAttrs)
+		if err != nil {
+			return errors.Annotate(err, "failed to update model config")
+		}
 	}
-	args.ControllerModelConfig = controllerModelCfg
 
 	// Initialise state, and store any agent config (e.g. password) changes.
 	var controller *state.Controller

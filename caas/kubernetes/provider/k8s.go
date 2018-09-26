@@ -98,7 +98,7 @@ func (k *kubernetesClient) Bootstrap(ctx environs.BootstrapContext, callCtx cont
 
 // Config -
 func (k *kubernetesClient) Config() *config.Config {
-	return nil
+	return &config.Config{}
 }
 
 // ControllerInstances -
