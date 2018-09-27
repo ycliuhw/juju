@@ -158,10 +158,12 @@ func InitializeState(
 	if err := st.SetStateServingInfo(ssi); err != nil {
 		return nil, nil, errors.Errorf("cannot set state serving info: %v", err)
 	}
-	m, err := initBootstrapMachine(c, st, args)
-	if err != nil {
-		return nil, nil, errors.Annotate(err, "cannot initialize bootstrap machine")
-	}
+
+	// m, err := initBootstrapMachine(c, st, args)
+	// if err != nil {
+	// 	return nil, nil, errors.Annotate(err, "cannot initialize bootstrap machine")
+	// }
+	var m *state.Machine
 
 	// // Create the initial hosted model, with the model config passed to
 	// // bootstrap, which contains the UUID, name for the hosted model,
@@ -313,7 +315,7 @@ func initBootstrapMachine(c agent.ConfigSetter, st *state.State, args Initialize
 		Constraints:             args.BootstrapMachineConstraints,
 		InstanceId:              args.BootstrapMachineInstanceId,
 		HardwareCharacteristics: hardware,
-		Jobs:                    jobs,
+		Jobs: jobs,
 	})
 	if err != nil {
 		return nil, errors.Annotate(err, "cannot create bootstrap machine in state")

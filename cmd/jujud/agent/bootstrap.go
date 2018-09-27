@@ -276,23 +276,29 @@ func (c *BootstrapCommand) Run(_ *cmd.Context) error {
 	if err := c.startMongo(addrs, agentConfig); err != nil {
 		return errors.Annotate(err, "failed to start mongo")
 	}
-	if args.ControllerCloud.Type == "kubernetes" {
-		cfg, err := p.PrepareConfig(environs.PrepareConfigParams{
-			Cloud:  cloudSpec,
-			Config: args.ControllerModelConfig,
-		})
-		if err != nil {
-			return errors.Trace(err)
-		}
-		args.ControllerModelConfig, err = cfg.Apply(newConfigAttrs)
-		if err != nil {
-			return errors.Annotate(err, "failed to update model config")
-		}
-	} else {
-		args.ControllerModelConfig, err = env.Config().Apply(newConfigAttrs)
-		if err != nil {
-			return errors.Annotate(err, "failed to update model config")
-		}
+
+	// if args.ControllerCloud.Type == "kubernetes" {
+	// 	cfg, err := p.PrepareConfig(environs.PrepareConfigParams{
+	// 		Cloud:  cloudSpec,
+	// 		Config: args.ControllerModelConfig,
+	// 	})
+	// 	if err != nil {
+	// 		return errors.Trace(err)
+	// 	}
+	// 	args.ControllerModelConfig, err = cfg.Apply(newConfigAttrs)
+	// 	if err != nil {
+	// 		return errors.Annotate(err, "failed to update model config")
+	// 	}
+	// } else {
+	// 	args.ControllerModelConfig, err = env.Config().Apply(newConfigAttrs)
+	// 	if err != nil {
+	// 		return errors.Annotate(err, "failed to update model config")
+	// 	}
+	// }
+
+	args.ControllerModelConfig, err = env.Config().Apply(newConfigAttrs)
+	if err != nil {
+		return errors.Annotate(err, "failed to update model config")
 	}
 
 	// Initialise state, and store any agent config (e.g. password) changes.
@@ -379,7 +385,8 @@ func (c *BootstrapCommand) Run(_ *cmd.Context) error {
 	}
 
 	// bootstrap machine always gets the vote
-	return m.SetHasVote(true)
+	// return m.SetHasVote(true)
+	return nil
 }
 
 func (c *BootstrapCommand) startMongo(addrs []network.Address, agentConfig agent.Config) error {
