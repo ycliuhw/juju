@@ -233,8 +233,8 @@ func (a *machineAgentCmd) ensureThenReadAgentConfig() error {
 	if os.IsNotExist(errors.Cause(err)) {
 		// this needs to be enhanced later for k8s HA mode
 		isFirstRun = true
-
 		templateFile := filepath.Join(agent.Dir(a.agentInitializer.DataDir(), a.Tag()), TemplateAgentConfigFileName)
+		logger.Criticalf("1st run, copying templateFile -> %q", templateFile)
 		if err := copyFile(agent.ConfigPath(a.agentInitializer.DataDir(), a.Tag()), templateFile); err != nil {
 			logger.Errorf("copying agent config file template: %v", err)
 			return errors.Trace(err)
@@ -260,7 +260,7 @@ func (a *machineAgentCmd) Run(c *cmd.Context) error {
 
 		// bootstrapCmd.AgentConf = a.currentConfig
 		bootstrapCmd.BootstrapParamsFile = filepath.Join(a.agentInitializer.DataDir(), "bootstrap-params")
-		logger.Criticalf("bootstrapCmd.Run(c) -------------------------> %q", a.agentInitializer.DataDir())
+		logger.Criticalf("1st run, exec bootstrapCmd, DataDir is %q", a.agentInitializer.DataDir())
 		bootstrapCmd.Run(c)
 	}
 	machineAgent, err := a.machineAgentFactory(a.machineId)
