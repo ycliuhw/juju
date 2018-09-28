@@ -46,10 +46,16 @@ spec:
           items:
           - key: shared-secret
             path: shared-secret
+      # - name: juju-controller-bootstrap-params  # !!! secret escapes "" which makes bootstrap-params an invalid yaml!!!
+      #   secret:
+      #     secretName: juju-controller-bootstrap-params
+      #     defaultMode: 256
+      #     items:
+      #     - key: bootstrap-params
+      #       path: bootstrap-params
       - name: juju-controller-bootstrap-params
-        secret:
-          secretName: juju-controller-bootstrap-params
-          defaultMode: 256
+        configMap:
+          name: juju-controller-bootstrap-params
           items:
           - key: bootstrap-params
             path: bootstrap-params
@@ -139,7 +145,7 @@ spec:
         imagePullPolicy: Always
         volumeMounts:
         - name: juju-controller-persistent-storage
-          mountPath: /var/lib/juju/agents
+          mountPath: /var/lib/juju
         - name: juju-controller-log-dir
           mountPath: /var/log/juju
         - name: juju-controller-agent-conf

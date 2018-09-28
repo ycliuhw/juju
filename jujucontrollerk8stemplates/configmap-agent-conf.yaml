@@ -42,7 +42,7 @@ data:
     controller: controller-d5481262-e1ad-44e3-83d5-9e66c0611d23
     model: model-9a776575-c053-430c-8059-ce5abce17b7a
     apiaddresses:
-    - 127.0.0.1:17070
+    - localhost:17070
     apipassword: izREP7cxnryLX2gwEUe3zl40
     oldpassword: dbacffbe75cd8c70d81fe7738d9e8493
     loggingconfig: <root>=DEBUG;unit=DEBUG
@@ -50,7 +50,7 @@ data:
       AGENT_SERVICE_NAME: jujud-machine-0
       CONTAINER_TYPE: ""
       NUMA_CTL_PREFERENCE: "false"
-      PROVIDER_TYPE: ec2
+      PROVIDER_TYPE: kubernetes
     controllercert: |
       -----BEGIN CERTIFICATE-----
       MIIDyzCCArOgAwIBAgIVAMaum/bXkVMByKDmsJZKQ4O23ElWMA0GCSqGSIb3DQEB
