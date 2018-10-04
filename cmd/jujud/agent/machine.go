@@ -44,6 +44,7 @@ import (
 	apiprovisioner "github.com/juju/juju/api/provisioner"
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/caas"
+	caasprovider "github.com/juju/juju/caas/kubernetes/provider"
 	"github.com/juju/juju/cert"
 	"github.com/juju/juju/cmd/jujud/agent/machine"
 	"github.com/juju/juju/cmd/jujud/agent/model"
@@ -100,9 +101,10 @@ var (
 	useMultipleCPUs   = utils.UseMultipleCPUs
 	reportOpenedState = func(*state.State) {}
 
-	caasModelManifolds = model.CAASManifolds
-	iaasModelManifolds = model.IAASManifolds
-	machineManifolds   = machine.Manifolds
+	caasModelManifolds   = model.CAASManifolds
+	iaasModelManifolds   = model.IAASManifolds
+	caasMachineManifolds = machine.CAASManifolds
+	iaasMachineManifolds = machine.IAASManifolds
 
 	// isFirstRun indicates if it is the first run of a new controller which is mostly used
 	// for checking if bootstrap-state should run or not
@@ -551,6 +553,9 @@ func (a *MachineAgent) Run(*cmd.Context) (err error) {
 
 func (a *MachineAgent) makeEngineCreator(previousAgentVersion version.Number) func() (worker.Worker, error) {
 	return func() (worker.Worker, error) {
+
+		providerType := a.CurrentConfig().ProviderType()
+
 		config := dependency.EngineConfig{
 			IsFatal:     cmdutil.IsFatal,
 			WorstError:  cmdutil.MoreImportantError,
@@ -602,7 +607,14 @@ func (a *MachineAgent) makeEngineCreator(previousAgentVersion version.Number) fu
 			return environs.SupportsSpaces(state.CallContext(st), env), nil
 		}
 
-		manifolds := machineManifolds(machine.ManifoldsConfig{
+		if providerType == caasprovider.CAASProviderType {
+			// TODO: read from caas broker rather than env
+			controllerSupportsSpaces = func(st *state.State) (bool, error) {
+				return false, nil
+			}
+		}
+
+		manifoldsCfg := machine.ManifoldsConfig{
 			PreviousAgentVersion: previousAgentVersion,
 			Agent:                agent.APIHostPortsSetter{Agent: a},
 			RootDir:              a.rootDir,
@@ -634,7 +646,15 @@ func (a *MachineAgent) makeEngineCreator(previousAgentVersion version.Number) fu
 			RegisterIntrospectionHTTPHandlers: registerIntrospectionHandlers,
 			NewModelWorker:                    a.startModelWorkers,
 			ControllerSupportsSpaces:          controllerSupportsSpaces,
-		})
+		}
+
+		var manifolds dependency.Manifolds
+		if providerType == caasprovider.CAASProviderType {
+			manifolds = caasMachineManifolds(manifoldsCfg)
+		} else {
+			manifolds = iaasMachineManifolds(manifoldsCfg)
+		}
+
 		if err := dependency.Install(engine, manifolds); err != nil {
 			if err := worker.Stop(engine); err != nil {
 				logger.Errorf("while stopping engine with bad manifolds: %v", err)
@@ -750,7 +770,7 @@ func (a *MachineAgent) startAPIWorkers(apiConn api.Connection) (_ worker.Worker,
 		if params.IsCodeDead(cause) || cause == jworker.ErrTerminateAgent {
 			return nil, jworker.ErrTerminateAgent
 		}
-		return nil, errors.Errorf("setting up container support: %v", err)
+		return nil, errors.Annotate(err, "setting up container support")
 	}
 
 	if isModelManager {
@@ -786,6 +806,8 @@ func (a *MachineAgent) machine(apiConn api.Connection) (*apimachiner.Machine, er
 }
 
 func (a *MachineAgent) setControllerNetworkConfig(apiConn api.Connection) error {
+	// ????? do we need this for k8s
+
 	machine, err := a.machine(apiConn)
 	if errors.IsNotFound(err) || err == nil && machine.Life() == params.Dead {
 		return jworker.ErrTerminateAgent
