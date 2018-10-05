@@ -385,8 +385,8 @@ func (c *BootstrapCommand) Run(_ *cmd.Context) error {
 	}
 
 	// bootstrap machine always gets the vote
-	// return m.SetHasVote(true)
-	return nil
+	return m.SetHasVote(true)
+	// return nil
 }
 
 func (c *BootstrapCommand) startMongo(addrs []network.Address, agentConfig agent.Config) error {

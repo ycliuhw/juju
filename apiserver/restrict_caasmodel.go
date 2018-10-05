@@ -54,6 +54,7 @@ var commonModelFacadeNames = set.NewStrings(
 	"Uniter",
 	"VolumeAttachmentsWatcher",
 
+	// !!!! newly enabled for testing
 	"Provisioner",
 	"Resumer",
 	"FanConfigurer",
@@ -62,6 +63,7 @@ var commonModelFacadeNames = set.NewStrings(
 	"ProxyUpdater",
 	"Reboot",
 	"Machiner",
+	"ExternalControllerUpdater",
 )
 
 // caasModelFacadeNames lists facades that are only used with CAAS

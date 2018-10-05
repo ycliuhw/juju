@@ -18,6 +18,10 @@ RUN CGO_ENABLED=1 \
 # FROM scratch
 FROM ubuntu:bionic
 
+# remove this later!!!
+RUN apt update && apt install -y \
+    iproute2
+
 ARG JUJUD_DIR=/opt/juju/tools/machine-0
 WORKDIR /var/lib/juju
 

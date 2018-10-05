@@ -498,16 +498,17 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 			BackoffDelay:   globalClockUpdaterBackoffDelay,
 			Logger:         loggo.GetLogger("juju.worker.globalclockupdater.mongo"),
 		}),
-		// We also run another clock updater to feed time updates into
-		// the lease FSM.
-		leaseClockUpdaterName: globalclockupdater.Manifold(globalclockupdater.ManifoldConfig{
-			ClockName:        clockName,
-			LeaseManagerName: leaseManagerName,
-			NewWorker:        globalclockupdater.NewWorker,
-			UpdateInterval:   globalClockUpdaterUpdateInterval,
-			BackoffDelay:     globalClockUpdaterBackoffDelay,
-			Logger:           loggo.GetLogger("juju.worker.globalclockupdater.raft"),
-		}),
+		// // // ????? why this is timing out !!!
+		// // We also run another clock updater to feed time updates into
+		// // the lease FSM.
+		// leaseClockUpdaterName: globalclockupdater.Manifold(globalclockupdater.ManifoldConfig{
+		// 	ClockName:        clockName,
+		// 	LeaseManagerName: leaseManagerName,
+		// 	NewWorker:        globalclockupdater.NewWorker,
+		// 	UpdateInterval:   globalClockUpdaterUpdateInterval,
+		// 	BackoffDelay:     globalClockUpdaterBackoffDelay,
+		// 	Logger:           loggo.GetLogger("juju.worker.globalclockupdater.raft"),
+		// }),
 
 		// Each controller machine runs a singular worker which will
 		// attempt to claim responsibility for running certain workers
@@ -808,6 +809,16 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 			NewFacade:     credentialvalidator.NewFacade,
 			NewWorker:     credentialvalidator.NewWorker,
 		}),
+
+		// The machiner Worker will wait for the identified machine to become
+		// Dying and make it Dead; or until the machine becomes Dead by other
+		// means. This worker needs to be launched after fanconfigurer
+		// so that it reports interfaces created by it.
+		machinerName: ifNotMigrating(machiner.Manifold(machiner.ManifoldConfig{
+			AgentName:         agentName,
+			APICallerName:     apiCallerName,
+			FanConfigurerName: fanConfigurerName,
+		})),
 	}
 	if utilsfeatureflag.Enabled(feature.UpgradeSeries) {
 		manifolds[upgradeSeriesWorkerName] = ifNotMigrating(upgradeseries.Manifold(upgradeseries.ManifoldConfig{
@@ -836,16 +847,6 @@ func IAASManifolds(config ManifoldsConfig) dependency.Manifolds {
 		toolsVersionCheckerName: ifNotMigrating(toolsversionchecker.Manifold(toolsversionchecker.ManifoldConfig{
 			AgentName:     agentName,
 			APICallerName: apiCallerName,
-		})),
-
-		// The machiner Worker will wait for the identified machine to become
-		// Dying and make it Dead; or until the machine becomes Dead by other
-		// means. This worker needs to be launched after fanconfigurer
-		// so that it reports interfaces created by it.
-		machinerName: ifNotMigrating(machiner.Manifold(machiner.ManifoldConfig{
-			AgentName:         agentName,
-			APICallerName:     apiCallerName,
-			FanConfigurerName: fanConfigurerName,
 		})),
 
 		// The proxy config updater is a leaf worker that sets http/https/apt/etc
@@ -987,17 +988,17 @@ const (
 	externalControllerUpdaterName = "external-controller-updater"
 	globalClockUpdaterName        = "global-clock-updater"
 	leaseClockUpdaterName         = "lease-clock-updater"
-	isPrimaryControllerFlagName = "is-primary-controller-flag"
-	isControllerFlagName        = "is-controller-flag"
-	logPrunerName               = "log-pruner"
-	txnPrunerName               = "transaction-pruner"
-	certificateWatcherName      = "certificate-watcher"
-	modelWorkerManagerName      = "model-worker-manager"
-	peergrouperName             = "peer-grouper"
-	restoreWatcherName          = "restore-watcher"
-	certificateUpdaterName      = "certificate-updater"
-	auditConfigUpdaterName      = "audit-config-updater"
-	leaseManagerName            = "lease-manager"
+	isPrimaryControllerFlagName   = "is-primary-controller-flag"
+	isControllerFlagName          = "is-controller-flag"
+	logPrunerName                 = "log-pruner"
+	txnPrunerName                 = "transaction-pruner"
+	certificateWatcherName        = "certificate-watcher"
+	modelWorkerManagerName        = "model-worker-manager"
+	peergrouperName               = "peer-grouper"
+	restoreWatcherName            = "restore-watcher"
+	certificateUpdaterName        = "certificate-updater"
+	auditConfigUpdaterName        = "audit-config-updater"
+	leaseManagerName              = "lease-manager"
 
 	upgradeSeriesEnabledName = "upgrade-series-enabled"
 	upgradeSeriesWorkerName  = "upgrade-series"
