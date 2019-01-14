@@ -241,6 +241,10 @@ def assess_caas_charm_deployment(client):
     log.info(caas_client.kubectl('get', 'all', '--all-namespaces'))
     k8s_model.juju(k8s_model._show_status, ('--format', 'tabular'))
 
+    # destroy model with `--destroy-storage` to exit peacefully
+    # because destroy-controller does not have --destroy-storage enable in jujupy.
+    k8s_model.destroy_model()
+
 
 def parse_args(argv):
     """Parse all arguments."""
