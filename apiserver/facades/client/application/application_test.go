@@ -502,6 +502,35 @@ func (s *applicationSuite) TestApplicationDeploy(c *gc.C) {
 	c.Assert(files, gc.HasLen, 0)
 }
 
+func (s *applicationSuite) TestApplicationDeployToCAASControllerModel(c *gc.C) {
+	// // TODO
+	// s.Model = CAASController
+	// defer func() {
+	// 	// reset model.
+	// 	s.SetUpSuite(c)
+	// }()
+
+	curl, _ := s.UploadCharm(c, "precise/dummy-42", "dummy")
+	err := application.AddCharmWithAuthorization(application.NewStateShim(s.State), params.AddCharmWithAuthorization{
+		URL: curl.String(),
+	})
+	c.Assert(err, jc.ErrorIsNil)
+	var cons constraints.Value
+	args := params.ApplicationDeploy{
+		ApplicationName: "application",
+		CharmURL:        curl.String(),
+		NumUnits:        1,
+		Constraints:     cons,
+		Placement: []*instance.Placement{
+			{"deadbeef-0bad-400d-8000-4b1d0d06f00d", "valid"},
+		},
+	}
+	_, err = s.applicationAPI.Deploy(params.ApplicationsDeploy{
+		Applications: []params.ApplicationDeploy{args}},
+	)
+	c.Assert(err, gc.ErrorMatches, errors.IsNotSupported)
+}
+
 func (s *applicationSuite) TestApplicationDeployWithInvalidPlacement(c *gc.C) {
 	curl, _ := s.UploadCharm(c, "precise/dummy-42", "dummy")
 	err := application.AddCharmWithAuthorization(application.NewStateShim(s.State), params.AddCharmWithAuthorization{

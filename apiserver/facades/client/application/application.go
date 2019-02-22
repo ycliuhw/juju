@@ -32,6 +32,7 @@ import (
 	"github.com/juju/juju/core/instance"
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/environs"
+	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/network"
 	"github.com/juju/juju/permission"
 	"github.com/juju/juju/state"
@@ -333,11 +334,15 @@ func (api *APIv6) Deploy(args params.ApplicationsDeployV6) (params.ErrorResults,
 // Deploy fetches the charms from the charm store and deploys them
 // using the specified placement directives.
 func (api *APIBase) Deploy(args params.ApplicationsDeploy) (params.ErrorResults, error) {
-	if err := api.checkCanWrite(); err != nil {
-		return params.ErrorResults{}, errors.Trace(err)
-	}
 	result := params.ErrorResults{
 		Results: make([]params.ErrorResult, len(args.Applications)),
+	}
+	if api.modelType == state.ModelTypeCAAS && api.modelName == config.JujuControllerSource {
+		return result, errors.NotSupportedf("deploying to %q model %q", api.modelType, api.modelName)
+	}
+
+	if err := api.checkCanWrite(); err != nil {
+		return result, errors.Trace(err)
 	}
 	if err := api.check.ChangeAllowed(); err != nil {
 		return result, errors.Trace(err)
