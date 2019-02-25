@@ -112,8 +112,9 @@ type JujuConnSuite struct {
 	BackingStatePool    *state.StatePool      // The StatePool being used by the API server.
 	Hub                 *pubsub.StructuredHub // The central hub being used by the API server.
 	Controller          *cache.Controller     // The cache.Controller used by the API server.
-	LeaseManager        lease.Manager         // The lease manager being used by the API server.
-	RootDir             string                // The faked-up root directory.
+	IsCAASController    bool
+	LeaseManager        lease.Manager // The lease manager being used by the API server.
+	RootDir             string        // The faked-up root directory.
 	LogDir              string
 	oldHome             string
 	oldJujuXDGDataHome  string
@@ -428,8 +429,27 @@ func (s *JujuConnSuite) setUpConn(c *gc.C) {
 		s.ControllerConfig[key] = value
 	}
 	cloudSpec := dummy.SampleCloudSpec()
+	kld := cloud.Cloud{
+		Name:             cloudSpec.Name,
+		Type:             cloudSpec.Type,
+		AuthTypes:        []cloud.AuthType{cloud.EmptyAuthType, cloud.UserPassAuthType},
+		Endpoint:         cloudSpec.Endpoint,
+		IdentityEndpoint: cloudSpec.IdentityEndpoint,
+		StorageEndpoint:  cloudSpec.StorageEndpoint,
+		Regions: []cloud.Region{
+			{
+				Name:             "dummy-region",
+				Endpoint:         "dummy-endpoint",
+				IdentityEndpoint: "dummy-identity-endpoint",
+				StorageEndpoint:  "dummy-storage-endpoint",
+			},
+		},
+	}
+	if s.IsCAASController {
+		kld.Type = "kubernetes"
+	}
 	bootstrapEnviron, err := bootstrap.PrepareController(
-		false,
+		cloud.CloudIsCAAS(kld),
 		modelcmd.BootstrapContext(ctx),
 		s.ControllerStore,
 		bootstrap.PrepareParams{
@@ -467,24 +487,9 @@ func (s *JujuConnSuite) setUpConn(c *gc.C) {
 	s.ControllerConfig["api-port"] = apiPort
 	s.ProviderCallContext = context.NewCloudCallContext()
 	err = bootstrap.Bootstrap(modelcmd.BootstrapContext(ctx), environ, s.ProviderCallContext, bootstrap.BootstrapParams{
-		ControllerConfig: s.ControllerConfig,
-		CloudRegion:      "dummy-region",
-		Cloud: cloud.Cloud{
-			Name:             cloudSpec.Name,
-			Type:             cloudSpec.Type,
-			AuthTypes:        []cloud.AuthType{cloud.EmptyAuthType, cloud.UserPassAuthType},
-			Endpoint:         cloudSpec.Endpoint,
-			IdentityEndpoint: cloudSpec.IdentityEndpoint,
-			StorageEndpoint:  cloudSpec.StorageEndpoint,
-			Regions: []cloud.Region{
-				{
-					Name:             "dummy-region",
-					Endpoint:         "dummy-endpoint",
-					IdentityEndpoint: "dummy-identity-endpoint",
-					StorageEndpoint:  "dummy-storage-endpoint",
-				},
-			},
-		},
+		ControllerConfig:    s.ControllerConfig,
+		CloudRegion:         "dummy-region",
+		Cloud:               kld,
 		CloudCredential:     cloudSpec.Credential,
 		CloudCredentialName: "cred",
 		AdminSecret:         AdminSecret,
@@ -556,7 +561,7 @@ func (s *JujuConnSuite) AddToolsToState(c *gc.C, versions ...version.Binary) {
 	}
 }
 
-// AddDefaultTools adds tools to tools storage for default juju
+// AddDefaultToolsToState adds tools to tools storage for default juju
 // series and architectures.
 func (s *JujuConnSuite) AddDefaultToolsToState(c *gc.C) {
 	versions := DefaultVersions(s.Environ.Config())
