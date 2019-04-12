@@ -328,7 +328,7 @@ var clusterQueryErrMsg = `
 	storage defaults are available and to detect the cluster's cloud/region.
 	This was not possible in this case so run add-k8s again, using
 	--storage=<name> to specify the storage class to use and
-	--region=<cloud>/<region> to specify the cloud/region.
+	--region=<cloudType>/<region> to specify the cloud/region.
 `[1:]
 
 var unknownClusterErrMsg = `
@@ -499,7 +499,7 @@ func (c *AddCAASCommand) validateCloudRegion(cloudRegion string) (_ string, err 
 }
 
 func (c *AddCAASCommand) getClusterMetadataFunc(ctx *cmd.Context) provider.GetClusterMetadataFunc {
-	return func(broker caas.ClusterMetadataChecker) (*caas.ClusterMetadata, error) {
+	return func(storageClassName string, broker caas.ClusterMetadataChecker) (*caas.ClusterMetadata, error) {
 		interrupted := make(chan os.Signal, 1)
 		defer close(interrupted)
 		ctx.InterruptNotify(interrupted)
