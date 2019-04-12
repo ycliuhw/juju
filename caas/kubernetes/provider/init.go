@@ -40,6 +40,7 @@ func init() {
 			Name:        "EBS Volume",
 			Provisioner: "kubernetes.io/aws-ebs",
 		},
+		// No preferred storage class definition for CDK because CDK could run on any cloud providers.
 	}
 
 	// jujuPreferredOperatorStorage defines the opinionated storage
@@ -64,7 +65,8 @@ func compileK8sCloudCheckers() map[string]k8slabels.Selector {
 		caas.K8sCloudAzure: newLabelRequirements(
 			requirementParams{"kubernetes.azure.com/cluster", selection.Exists, nil},
 		),
-		// format - cloudType: requirements.
-		// TODO(caas): add support for cdk, etc.
+		caas.K8sCloudCDK: newLabelRequirements(
+			requirementParams{"juju-application", selection.Equals, []string{"kubernetes-worker"}},
+		),
 	}
 }

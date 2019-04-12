@@ -89,6 +89,7 @@ func (k *kubernetesClient) GetClusterMetadata(storageClass string) (*caas.Cluste
 	if err != nil {
 		return nil, errors.Annotate(err, "cannot determine cluster region")
 	}
+	logger.Criticalf("listHostCloudRegions -> %+v", result)
 
 	serviceType := core.ServiceTypeLoadBalancer
 	if v, ok := preferredControllerServiceTypes[result.Cloud]; ok {

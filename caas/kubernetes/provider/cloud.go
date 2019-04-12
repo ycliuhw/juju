@@ -25,7 +25,7 @@ import (
 type ClientConfigFuncGetter func(string) (clientconfig.ClientConfigFunc, error)
 
 // GetClusterMetadataFunc returns the ClusterMetadata using the provided ClusterMetadataChecker
-type GetClusterMetadataFunc func(caas.ClusterMetadataChecker) (*caas.ClusterMetadata, error)
+type GetClusterMetadataFunc func(string, caas.ClusterMetadataChecker) (*caas.ClusterMetadata, error)
 
 // KubeCloudParams defines the parameters used to extract a k8s cluster definition from kubeconfig data.
 type KubeCloudParams struct {
@@ -96,10 +96,11 @@ func UpdateKubeCloudWithStorage(k8sCloud *cloud.Cloud, credential jujucloud.Cred
 	fail := func(e error) (string, error) {
 		return "", e
 	}
+	logger.Criticalf("storageParams -> %+v", storageParams)
 
 	// Get the cluster metadata so we can see if there's suitable storage available.
-	clusterMetadata, err := storageParams.GetClusterMetadataFunc(storageParams.MetadataChecker)
-
+	clusterMetadata, err := storageParams.GetClusterMetadataFunc(storageParams.WorkloadStorage, storageParams.MetadataChecker)
+	logger.Criticalf("clusterMetadata.NominatedStorageClass -> %+v", clusterMetadata.NominatedStorageClass)
 	if err != nil || clusterMetadata == nil {
 		return fail(ClusterQueryError{Message: err.Error()})
 	}
@@ -120,41 +121,14 @@ func UpdateKubeCloudWithStorage(k8sCloud *cloud.Cloud, credential jujucloud.Cred
 	}}
 
 	// If the user has not specified storage, check that the cluster has Juju's opinionated defaults.
-	cloudType := strings.Split(storageParams.HostCloudRegion, "/")[0]
-	err = storageParams.MetadataChecker.CheckDefaultWorkloadStorage(cloudType, clusterMetadata.NominatedStorageClass)
-	if errors.IsNotFound(err) {
-		return fail(UnknownClusterError{CloudName: cloudType})
-	}
-	if storageParams.WorkloadStorage == "" && caas.IsNonPreferredStorageError(err) {
-		npse := err.(*caas.NonPreferredStorageError)
-		return fail(NoRecommendedStorageError{Message: err.Error(), ProviderName: npse.Name})
-	}
-	if err != nil && !caas.IsNonPreferredStorageError(err) {
-		return fail(errors.Trace(err))
-	}
+	logger.Criticalf("k8sCloud -> %+v", k8sCloud)
 
 	// If no storage class exists, we need to create one with the opinionated defaults.
 	var storageMsg string
-	if storageParams.WorkloadStorage != "" && caas.IsNonPreferredStorageError(err) {
-		preferredStorage := errors.Cause(err).(*caas.NonPreferredStorageError).PreferredStorage
-		sp, err := storageParams.MetadataChecker.EnsureStorageProvisioner(caas.StorageProvisioner{
-			Name:        storageParams.WorkloadStorage,
-			Provisioner: preferredStorage.Provisioner,
-			Parameters:  preferredStorage.Parameters,
-		})
-		if err != nil {
-			return fail(errors.Annotatef(err, "creating storage class %q", storageParams.WorkloadStorage))
-		}
-		if sp.Provisioner == preferredStorage.Provisioner {
-			storageMsg = fmt.Sprintf(" with %s default storage", preferredStorage.Name)
-			if storageParams.WorkloadStorage != "" {
-				storageMsg = fmt.Sprintf("%s provisioned\nby the existing %q storage class", storageMsg, storageParams.WorkloadStorage)
-			}
-		} else {
-			storageMsg = fmt.Sprintf(" with storage provisioned\nby the existing %q storage class", storageParams.WorkloadStorage)
-		}
+	if clusterMetadata.NominatedStorageClass == nil {
+		return fail(errors.NotValidf("storage class was missing"))
 	}
-	if storageParams.WorkloadStorage == "" && clusterMetadata.NominatedStorageClass != nil {
+	if storageParams.WorkloadStorage == "" {
 		storageParams.WorkloadStorage = clusterMetadata.NominatedStorageClass.Name
 	}
 
@@ -247,8 +221,8 @@ func (p kubernetesEnvironProvider) FinalizeCloud(ctx environs.FinalizeCloudConte
 	}
 	storageUpdateParams := KubeCloudStorageParams{
 		MetadataChecker: broker,
-		GetClusterMetadataFunc: func(broker caas.ClusterMetadataChecker) (*caas.ClusterMetadata, error) {
-			clusterMetadata, err := broker.GetClusterMetadata("")
+		GetClusterMetadataFunc: func(storageClassName string, broker caas.ClusterMetadataChecker) (*caas.ClusterMetadata, error) {
+			clusterMetadata, err := broker.GetClusterMetadata(storageClassName)
 			if err != nil {
 				return nil, errors.Trace(err)
 			}
