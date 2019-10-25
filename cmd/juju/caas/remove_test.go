@@ -164,10 +164,21 @@ func (s *removeCAASSuite) TestRemoveNoController(c *gc.C) {
 	s.fakeCloudAPI.CheckNoCalls(c)
 
 	// client side operations
-	s.cloudMetadataStore.CheckCallNames(c, "PersonalCloudMetadata", "WritePersonalCloudMetadata", "PersonalCloudMetadata")
-	s.cloudMetadataStore.CheckCall(c, 1, "WritePersonalCloudMetadata", map[string]cloud.Cloud{})
-	s.store.CheckCallNames(c, "UpdateCredential", "UpdateCredential")
-	s.store.CheckCall(c, 0, "UpdateCredential", "myk8s", cloud.CloudCredential{})
+	s.cloudMetadataStore.CheckCallNames(c,
+		"PersonalCloudMetadata",
+		"PersonalCloudMetadata",
+		"WritePersonalCloudMetadata",
+		"PersonalCloudMetadata",
+		"PersonalCloudMetadata",
+	)
+	s.cloudMetadataStore.CheckCall(c, 2, "WritePersonalCloudMetadata", map[string]cloud.Cloud{})
+	s.store.CheckCallNames(c,
+		"CredentialForCloud",
+		"UpdateCredential",
+		"UpdateCredential",
+	)
+	s.store.CheckCall(c, 1, "UpdateCredential", "myk8s", cloud.CloudCredential{})
+	s.store.CheckCall(c, 2, "UpdateCredential", "homestack", cloud.CloudCredential{})
 }
 
 func (s *removeCAASSuite) TestRemoveNotInController(c *gc.C) {
