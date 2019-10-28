@@ -1083,14 +1083,14 @@ func randomPrefix() (string, error) {
 }
 
 // Upgrade sets the OCI image for the app's operator to the specified version.
-func (k *kubernetesClient) Upgrade(appName string, vers version.Number) error {
+func (k *kubernetesClient) Upgrade(controlerOrAppName string, vers version.Number) error {
 	var resourceName string
-	if appName == JujuControllerStackName {
+	if controlerOrAppName == JujuControllerStackName {
 		// upgrading controller.
-		resourceName = appName
+		resourceName = controlerOrAppName
 	} else {
 		// upgrading operator.
-		resourceName = k.operatorName(appName)
+		resourceName = k.operatorName(controlerOrAppName)
 	}
 	logger.Debugf("Upgrading %q", resourceName)
 
@@ -1101,7 +1101,7 @@ func (k *kubernetesClient) Upgrade(appName string, vers version.Number) error {
 	}
 	// TODO(wallyworld) - only support stateful set at the moment
 	if err != nil {
-		return errors.NotSupportedf("upgrading %v", appName)
+		return errors.NotSupportedf("upgrading %v", controlerOrAppName)
 	}
 	for i, c := range existingStatefulSet.Spec.Template.Spec.Containers {
 		if !podcfg.IsJujuOCIImage(c.Image) {

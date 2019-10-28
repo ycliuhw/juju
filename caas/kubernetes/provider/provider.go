@@ -42,9 +42,11 @@ var providerInstance = kubernetesEnvironProvider{
 	},
 }
 
+const environProviderVersion1 = 1
+
 // Version is part of the EnvironProvider interface.
 func (kubernetesEnvironProvider) Version() int {
-	return 0
+	return environProviderVersion1
 }
 
 // CommandRunner allows to run commands on the underlying system

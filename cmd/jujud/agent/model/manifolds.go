@@ -429,6 +429,7 @@ func IAASManifolds(config ManifoldsConfig) dependency.Manifolds {
 			NewFacade:                    modelupgrader.NewFacade,
 			NewWorker:                    modelupgrader.NewWorker,
 			NewCredentialValidatorFacade: common.NewCredentialInvalidatorFacade,
+			NewCloudAPI:                  modelupgrader.NewCloudSpecAPI,
 			Logger:                       config.LoggingContext.GetLogger("juju.worker.modelupgrader"),
 		}))),
 		instanceMutaterName: ifNotMigrating(instancemutater.ModelManifold(instancemutater.ModelManifoldConfig{

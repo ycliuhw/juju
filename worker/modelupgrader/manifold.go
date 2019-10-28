@@ -35,6 +35,7 @@ type ManifoldConfig struct {
 	NewFacade                    func(base.APICaller) (Facade, error)
 	NewWorker                    func(Config) (worker.Worker, error)
 	NewCredentialValidatorFacade func(base.APICaller) (common.CredentialAPI, error)
+	NewCloudAPI                  func(base.APICaller, names.ModelTag) (CloudAPI, error)
 }
 
 func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, error) {
@@ -70,6 +71,11 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		return nil, errors.Trace(err)
 	}
 
+	cloudAPI, err := config.NewCloudAPI(apiCaller, config.ModelTag)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+
 	worker, err := config.NewWorker(Config{
 		Facade:        facade,
 		Environ:       environ,
@@ -77,6 +83,7 @@ func (config ManifoldConfig) start(context dependency.Context) (worker.Worker, e
 		ControllerTag: config.ControllerTag,
 		ModelTag:      config.ModelTag,
 		CredentialAPI: credentialAPI,
+		CloudAPI:      cloudAPI,
 		Logger:        config.Logger,
 	})
 	if err != nil {

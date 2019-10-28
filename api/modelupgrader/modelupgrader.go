@@ -13,20 +13,31 @@ import (
 	"github.com/juju/juju/apiserver/params"
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/core/watcher"
+	"github.com/juju/juju/environs"
+	"github.com/juju/juju/api/common/cloudspec"
 )
 
 var logger = loggo.GetLogger("juju.api.modelupgrader")
 
+type CloudAPI interface {
+	CloudSpec() (environs.CloudSpec, error)
+}
+
 // Client provides methods that the Juju client command uses to interact
 // with models stored in the Juju Server.
 type Client struct {
-	facade base.FacadeCaller
+	facade   base.FacadeCaller
+	cloudAPI CloudAPI
 }
 
 // NewClient creates a new `Client` based on an existing authenticated API
 // connection.
 func NewClient(caller base.APICaller) *Client {
-	return &Client{base.NewFacadeCaller(caller, "ModelUpgrader")}
+	facade := base.NewFacadeCaller(caller, "ModelUpgrader")
+	return &Client{
+		facade: facade,
+		cloudAPI: cloudspec.NewCloudSpecAPI(facade, tag)
+	}
 }
 
 // ModelEnvironVersion returns the current version of the environ corresponding

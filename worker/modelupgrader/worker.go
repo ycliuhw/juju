@@ -66,6 +66,9 @@ type Config struct {
 	// becomes invalid.
 	CredentialAPI common.CredentialAPI
 
+	// CredentialAPI holds the API facade used to get cloudspec.
+	CloudAPI CloudAPI
+
 	Logger Logger
 }
 
@@ -86,6 +89,9 @@ func (config Config) Validate() error {
 	}
 	if config.CredentialAPI == nil {
 		return errors.NotValidf("nil CredentialAPI")
+	}
+	if config.CloudAPI == nil {
+		return errors.NotValidf("nil CloudAPI")
 	}
 	if config.Logger == nil {
 		return errors.NotValidf("nil Logger")
