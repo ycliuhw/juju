@@ -24,8 +24,11 @@ import logging
 import os
 import shutil
 import subprocess
+from time import sleep
 
 import yaml
+
+from jujupy.utility import until_timeout
 
 from .base import Base, K8sProviderType
 from .factory import register_provider
@@ -62,7 +65,7 @@ class EKS(Base):
 
         # list all running clusters.
         logger.info(
-            'running eks clusters: \n\t- %s',
+            'Running eks clusters in %s: \n\t- %s', self.location,
             '\n\t- '.join([c['name'] for c in self.list_clusters(self.location)])
         )
 
@@ -76,7 +79,7 @@ class EKS(Base):
         else:
             self.sh(
                 '''curl --silent --location "https://github.com/weaveworks/eksctl/releases/latest/download/eksctl_$(uname -s)_amd64.tar.gz" | tar xz -C /tmp && mv /tmp/eksctl %s
-''' % self._eksctl_bin)
+''' % self._eksctl_bin, shell=True)
 
     def eksctl(self, *args):
         return self.sh(self._eksctl_bin, *args)
@@ -84,9 +87,7 @@ class EKS(Base):
     def _tear_down_substrate(self):
         logger.info("Deleting the EKS instance {0}".format(self.cluster_name))
         try:
-            o = self.eksctl(
-                'delete', 'cluster', self.cluster_name, '--region', self.location,
-            )
+            o = self.eksctl('delete', 'cluster', self.cluster_name, '--region', self.location)
             logger.info("cluster %s has been deleted -> \n%s", self.cluster_name, o)
         except Exception as e:
             if is_404(e):
@@ -100,9 +101,9 @@ class EKS(Base):
         )
 
     def _ensure_kube_dir(self):
-        logger.info("writing kubeconfig to %s" % self.kube_config_path)
-        self.sh(
-            'eksctl', 'utils', 'write-kubeconfig', '--cluster', self.cluster_name,
+        logger.info("Writing kubeconfig to %s" % self.kube_config_path)
+        self.eksctl(
+            'utils', 'write-kubeconfig', '--cluster', self.cluster_name,
             '--region', self.location, '--kubeconfig', self.kube_config_path,
         )
 
@@ -122,11 +123,28 @@ class EKS(Base):
         return self.eksctl('get', 'cluster', '--name', self.cluster_name, '--region', self.location, '-o', 'json')
 
     def provision_eks(self):
+        def log_remaining(remaining, msg=''):
+            sleep(3)
+            if remaining % 30 == 0:
+                msg += ' timeout in %ss...' % remaining
+                logger.info(msg)
+                
         # do pre cleanup;
         self._tear_down_substrate()
+        
+        for remaining in until_timeout(600):
+            # wait for the existing cluster to be deleted.
+            try:
+                self._get_cluster(self.cluster_name)
+            except Exception as e:
+                if is_404(e):
+                    break
+                raise
+            else:
+                log_remaining(remaining)
 
         # provision cluster.
-        logger.info('creating cluster -> %s', self.cluster_name)
+        logger.info('Creating cluster -> %s', self.cluster_name)
         try:
             o = self.eksctl(
                 'create', 'cluster',
@@ -144,7 +162,7 @@ class EKS(Base):
             )
             logger.info("cluster %s has been successfully provisioned -> \n%s", self.cluster_name, o)
         except subprocess.CalledProcessError as e:
-            logger.error('Error attempting to create the EKS instance.', e)
+            logger.error('Error attempting to create the EKS instance %s', e.__dict__)
             raise e
 
 
