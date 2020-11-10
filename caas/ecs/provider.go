@@ -4,6 +4,7 @@
 package ecs
 
 import (
+	jujuclock "github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/jsonschema"
 	"github.com/juju/loggo"
@@ -21,6 +22,11 @@ type environProvider struct {
 	providerCredentials
 }
 
+var (
+	_                environs.EnvironProvider = (*environProvider)(nil)
+	providerInstance                          = environProvider{}
+)
+
 // Version is part of the EnvironProvider interface.
 func (environProvider) Version() int {
 	return 0
@@ -37,7 +43,7 @@ func (p environProvider) Open(args environs.OpenParams) (caas.Broker, error) {
 	if clusterName == "" {
 		return nil, errors.NotValidf("empty cluster name %q", args.Cloud.Name)
 	}
-	return new(clusterName, args.Cloud, args.Config)
+	return newEnviron(clusterName, jujuclock.WallClock, args.Cloud, args.Config)
 }
 
 // CloudSchema returns the schema used to validate input for add-cloud.  Since

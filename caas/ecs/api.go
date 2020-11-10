@@ -14,7 +14,8 @@ import (
 	"github.com/aws/aws-sdk-go/service/ecs"
 	"github.com/juju/errors"
 
-	cloudspec "github.com/juju/juju/environs/cloudspec"
+	"github.com/juju/juju/cloud"
+	"github.com/juju/juju/environs/cloudspec"
 )
 
 type awsLogger struct {
@@ -23,6 +24,19 @@ type awsLogger struct {
 
 func (l awsLogger) Log(args ...interface{}) {
 	logger.Tracef("awsLogger %p: %s", l.session, fmt.Sprint(args...))
+}
+
+func validateCloudSpec(c cloudspec.CloudSpec) error {
+	if err := c.Validate(); err != nil {
+		return errors.Trace(err)
+	}
+	if c.Credential == nil {
+		return errors.NotValidf("missing credential")
+	}
+	if authType := c.Credential.AuthType(); authType != cloud.AccessKeyAuthType {
+		return errors.NotSupportedf("%q auth-type", authType)
+	}
+	return nil
 }
 
 func newECSClient(cloud cloudspec.CloudSpec) (*ecs.ECS, error) {

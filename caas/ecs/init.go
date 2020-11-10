@@ -9,5 +9,5 @@ import (
 )
 
 func init() {
-	_ = caas.RegisterContainerProvider(constants.ECSProviderType, environProvider{})
+	_ = caas.RegisterContainerProvider(constants.ECSProviderType, providerInstance)
 }

@@ -3,7 +3,15 @@
 
 package constants
 
+import (
+	"github.com/juju/juju/storage"
+)
+
 const (
 	// ECSProviderType is the provider type for AWS ecs.
 	ECSProviderType = "ecs"
+
+	// StorageProviderType defines the Juju storage type which can be used
+	// to provision storage on caas models.
+	StorageProviderType = storage.ProviderType("ecs")
 )
