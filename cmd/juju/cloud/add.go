@@ -642,6 +642,7 @@ func queryName(
 func addableCloudProviders() (providers []string, unsupported []string, _ error) {
 	allproviders := environs.RegisteredProviders()
 	for _, name := range allproviders {
+		logger.Criticalf("addableCloudProviders name %q", name)
 		provider, err := environs.Provider(name)
 		if err != nil {
 			// should be impossible

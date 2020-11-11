@@ -114,8 +114,12 @@ func (env *environ) Config() *config.Config {
 func (env *environ) SetConfig(cfg *config.Config) error {
 	env.lock.Lock()
 	defer env.lock.Unlock()
-	env.name = cfg.Name()
-	env.envCfgUnlocked = cfg
+	newCfg, err := providerInstance.newConfig(cfg)
+	if err != nil {
+		return errors.Trace(err)
+	}
+	env.name = newCfg.Config.Name()
+	env.envCfgUnlocked = newCfg.Config
 	return nil
 }
 

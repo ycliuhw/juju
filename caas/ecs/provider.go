@@ -49,6 +49,7 @@ func (p environProvider) Open(args environs.OpenParams) (caas.Broker, error) {
 // CloudSchema returns the schema used to validate input for add-cloud.  Since
 // this provider does not support custom clouds, this always returns nil.
 func (p environProvider) CloudSchema() *jsonschema.Schema {
+	// TODO: https://github.com/juju/juju/blob/54ccdf8394dbe608f68449e1f280cdaa272bd0d2/provider/vsphere/provider.go#L91
 	return nil
 }
 
@@ -60,12 +61,6 @@ func (p environProvider) Ping(ctx context.ProviderCallContext, endpoint string) 
 // PrepareConfig is specified in the EnvironProvider interface.
 func (p environProvider) PrepareConfig(args environs.PrepareConfigParams) (*config.Config, error) {
 	return nil, nil
-}
-
-// Validate is specified in the EnvironProvider interface.
-func (environProvider) Validate(cfg, old *config.Config) (valid *config.Config, err error) {
-	return nil, nil
-
 }
 
 // DetectRegions is specified in the environs.CloudRegionDetector interface.
