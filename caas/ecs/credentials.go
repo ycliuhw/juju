@@ -4,24 +4,57 @@
 package ecs
 
 import (
+	"github.com/juju/errors"
+
 	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/environs"
 )
 
 const (
-	CredAttrClusterName = "cluster-name"
+	credAttrClusterName = "cluster-name"
+	credAttrRegionKey   = "region"
+	credAttrAccessKey   = "access-key"
+	credAttrSecretKey   = "secret-key"
 )
 
 type providerCredentials struct{}
 
 // CredentialSchemas is part of the environs.ProviderCredentials interface.
 func (providerCredentials) CredentialSchemas() map[cloud.AuthType]cloud.CredentialSchema {
-	return nil
+	return map[cloud.AuthType]cloud.CredentialSchema{
+		cloud.AccessKeyAuthType: {
+			{
+				Name: credAttrClusterName,
+				CredentialAttr: cloud.CredentialAttr{
+					Description: "The ECS cluster name",
+				},
+			},
+			{
+				Name: credAttrRegionKey,
+				CredentialAttr: cloud.CredentialAttr{
+					Description: "The region that the ECS cluster runs in",
+				},
+			},
+			{
+				Name: credAttrAccessKey,
+				CredentialAttr: cloud.CredentialAttr{
+					Description: "The AWS access key",
+				},
+			},
+			{
+				Name: credAttrSecretKey,
+				CredentialAttr: cloud.CredentialAttr{
+					Description: "The AWS secret key",
+					Hidden:      true,
+				},
+			},
+		},
+	}
 }
 
 // DetectCredentials is part of the environs.ProviderCredentials interface.
 func (e providerCredentials) DetectCredentials() (*cloud.CloudCredential, error) {
-	return nil, nil
+	return nil, errors.NotFoundf("credentials")
 }
 
 // FinalizeCredential is part of the environs.ProviderCredentials interface.

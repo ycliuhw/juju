@@ -301,7 +301,6 @@ func (c *cloudList) filter(all bool) bool {
 
 func clientPublicClouds() (map[string]jujucloud.Cloud, error) {
 	clouds, _, err := jujucloud.PublicCloudMetadata(jujucloud.JujuPublicCloudsPath())
-	logger.Criticalf("jujucloud.JujuPublicCloudsPath() %q", jujucloud.JujuPublicCloudsPath())
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -313,7 +312,6 @@ func listLocalCloudDetails(store jujuclient.CredentialGetter) (*cloudList, error
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	logger.Criticalf("clouds %q", clouds)
 	details := newCloudList()
 	for name, cloud := range clouds {
 		cloudDetails := makeCloudDetails(store, cloud)
@@ -325,7 +323,6 @@ func listLocalCloudDetails(store jujuclient.CredentialGetter) (*cloudList, error
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	logger.Criticalf("builtinClouds %q", builtinClouds)
 	for name, cloud := range builtinClouds {
 		cloudDetails := makeCloudDetails(store, cloud)
 		cloudDetails.Source = "built-in"
@@ -336,7 +333,6 @@ func listLocalCloudDetails(store jujuclient.CredentialGetter) (*cloudList, error
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	logger.Criticalf("personalClouds %q", personalClouds)
 	for name, cloud := range personalClouds {
 		cloudDetails := makeCloudDetails(store, cloud)
 		cloudDetails.Source = "local"

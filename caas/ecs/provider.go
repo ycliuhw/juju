@@ -34,12 +34,11 @@ func (environProvider) Version() int {
 
 // Open is specified in the EnvironProvider interface.
 func (p environProvider) Open(args environs.OpenParams) (caas.Broker, error) {
-	// new(clusterName string, cloud cloudspec.CloudSpec, envCfg *config.Config) (*environ, error)
 	attr := args.Cloud.Credential.Attributes()
 	if attr == nil {
 		return nil, errors.NotValidf("empty credential %q", args.Cloud.Name)
 	}
-	clusterName := attr[CredAttrClusterName]
+	clusterName := attr[credAttrClusterName]
 	if clusterName == "" {
 		return nil, errors.NotValidf("empty cluster name %q", args.Cloud.Name)
 	}
