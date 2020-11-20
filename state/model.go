@@ -14,6 +14,7 @@ import (
 	jujutxn "github.com/juju/txn"
 	jujuutils "github.com/juju/utils/v2"
 	"github.com/juju/version"
+	"github.com/kr/pretty"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/mgo.v2/txn"
@@ -324,6 +325,7 @@ func (m ModelArgs) Validate() error {
 // models, perhaps for future use around cross model
 // relations.
 func (ctlr *Controller) NewModel(args ModelArgs) (_ *Model, _ *State, err error) {
+	logger.Criticalf("NewModel args -> %s", pretty.Sprint(args))
 	st := ctlr.pool.SystemState()
 
 	if err := args.Validate(); err != nil {
@@ -493,7 +495,7 @@ func validateCloudRegion(cloud jujucloud.Cloud, regionName string) (txn.Op, erro
 		}
 	} else {
 		if len(cloud.Regions) > 0 {
-			return txn.Op{}, errors.NotValidf("missing CloudRegion")
+			return txn.Op{}, errors.NotValidf("missing cloud region")
 		}
 		assertCloudRegionOp.Assert = bson.D{
 			{"regions", bson.D{{"$exists", false}}},

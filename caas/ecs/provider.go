@@ -4,6 +4,8 @@
 package ecs
 
 import (
+	"net/url"
+
 	jujuclock "github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/jsonschema"
@@ -12,6 +14,7 @@ import (
 	"github.com/juju/juju/caas"
 	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/environs"
+	"github.com/juju/juju/environs/cloudspec"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/environs/context"
 )
@@ -59,10 +62,38 @@ func (p environProvider) Ping(ctx context.ProviderCallContext, endpoint string) 
 
 // PrepareConfig is specified in the EnvironProvider interface.
 func (p environProvider) PrepareConfig(args environs.PrepareConfigParams) (*config.Config, error) {
-	return nil, nil
+	if err := p.validateCloudSpec(args.Cloud); err != nil {
+		return nil, errors.Annotate(err, "validating cloud spec")
+	}
+	// Set the default storage sources.
+	attrs := make(map[string]interface{})
+	// if _, ok := args.Config.StorageDefaultBlockSource(); !ok {
+	// 	attrs[config.StorageDefaultBlockSourceKey] = constants.StorageProviderType
+	// }
+	// if _, ok := args.Config.StorageDefaultFilesystemSource(); !ok {
+	// 	attrs[config.StorageDefaultFilesystemSourceKey] = constants.StorageProviderType
+	// }
+	return args.Config.Apply(attrs)
 }
 
 // DetectRegions is specified in the environs.CloudRegionDetector interface.
 func (p environProvider) DetectRegions() ([]cloud.Region, error) {
 	return nil, errors.NotFoundf("regions")
+}
+
+func (p environProvider) validateCloudSpec(spec cloudspec.CloudSpec) error {
+
+	if err := spec.Validate(); err != nil {
+		return errors.Trace(err)
+	}
+	if _, err := url.Parse(spec.Endpoint); err != nil {
+		return errors.NotValidf("endpoint %q", spec.Endpoint)
+	}
+	if spec.Credential == nil {
+		return errors.NotValidf("missing credential")
+	}
+	if authType := spec.Credential.AuthType(); authType != cloud.AccessKeyAuthType {
+		return errors.NotSupportedf("%q auth-type", authType)
+	}
+	return nil
 }

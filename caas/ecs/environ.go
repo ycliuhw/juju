@@ -18,7 +18,7 @@ import (
 	// "github.com/juju/juju/environs"
 	// "github.com/juju/juju/cloud"
 	"github.com/juju/juju/caas"
-	"github.com/juju/juju/caas/ecs/constants"
+	// "github.com/juju/juju/caas/ecs/constants"
 	"github.com/juju/juju/core/annotations"
 	"github.com/juju/juju/core/application"
 	"github.com/juju/juju/core/watcher"
@@ -26,7 +26,7 @@ import (
 	cloudspec "github.com/juju/juju/environs/cloudspec"
 	"github.com/juju/juju/environs/config"
 	envcontext "github.com/juju/juju/environs/context"
-	jujustorage "github.com/juju/juju/storage"
+	// jujustorage "github.com/juju/juju/storage"
 )
 
 type environ struct {
@@ -295,28 +295,6 @@ func (*environ) ModelOperator() (*caas.ModelOperatorConfig, error) {
 func (*environ) ModelOperatorExists() (bool, error) {
 	// REMOVE!!!
 	return false, nil
-}
-
-// EnsureStorageProvisioner creates a storage class with the specified config, or returns an existing one.
-func (*environ) EnsureStorageProvisioner(cfg caas.StorageProvisioner) (*caas.StorageProvisioner, bool, error) {
-	// REMOVE!!!
-	return nil, false, nil
-}
-
-// StorageProvider is defined on the jujustorage.ProviderRegistry interface.
-func (*environ) StorageProvider(t jujustorage.ProviderType) (jujustorage.Provider, error) {
-	return nil, nil
-}
-
-// StorageProviderTypes is defined on the jujustorage.ProviderRegistry interface.
-func (*environ) StorageProviderTypes() ([]jujustorage.ProviderType, error) {
-	return []jujustorage.ProviderType{constants.StorageProviderType}, nil
-}
-
-// ValidateStorageClass returns an error if the storage config is not valid.
-func (*environ) ValidateStorageClass(config map[string]interface{}) error {
-	// REMOVE!!!
-	return nil
 }
 
 // GetCurrentNamespace returns current namespace name.
