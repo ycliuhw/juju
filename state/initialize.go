@@ -348,6 +348,7 @@ func (st *State) modelSetupOps(controllerUUID string, args ModelArgs, inherited 
 		ops = append(ops, incHostedModelCountOp())
 	}
 
+	logger.Criticalf("modelSetupOps args.StorageProviderRegistry -> %#v", args.StorageProviderRegistry)
 	// Create the default storage pools for the model.
 	if args.StorageProviderRegistry != nil {
 		defaultStoragePoolsOps, err := st.createDefaultStoragePoolsOps(args.StorageProviderRegistry)

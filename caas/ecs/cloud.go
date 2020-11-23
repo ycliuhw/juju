@@ -20,17 +20,17 @@ import (
 )
 
 const (
-	// ClusterNameKey is the cloud config attribute used to specify
-	// the cluster name for ecs cloud.
-	ClusterNameKey = "cluster-name"
+// // ClusterNameKey is the cloud config attribute used to specify
+// // the cluster name for ecs cloud.
+// ClusterNameKey = "cluster-name"
 )
 
 var configSchema = environschema.Fields{
-	ClusterNameKey: {
-		Description: "The name of the ECS cluster used to provision workload.",
-		Type:        environschema.Tstring,
-		Group:       environschema.AccountGroup,
-	},
+	// ClusterNameKey: {
+	// 	Description: "The name of the ECS cluster used to provision workload.",
+	// 	Type:        environschema.Tstring,
+	// 	Group:       environschema.AccountGroup,
+	// },
 }
 
 var providerConfigFields = func() schema.Fields {
@@ -42,7 +42,7 @@ var providerConfigFields = func() schema.Fields {
 }()
 
 var providerConfigDefaults = schema.Defaults{
-	ClusterNameKey: "",
+	// ClusterNameKey: "",
 }
 
 type brokerConfig struct {
@@ -50,9 +50,9 @@ type brokerConfig struct {
 	attrs map[string]interface{}
 }
 
-func (c *brokerConfig) clusterName() string {
-	return c.attrs[ClusterNameKey].(string)
-}
+// func (c *brokerConfig) clusterName() string {
+// 	return c.attrs[ClusterNameKey].(string)
+// }
 
 func (p environProvider) Validate(cfg, old *config.Config) (*config.Config, error) {
 	newCfg, err := validateConfig(cfg, old)

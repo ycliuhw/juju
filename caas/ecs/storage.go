@@ -11,6 +11,19 @@ import (
 	jujustorage "github.com/juju/juju/storage"
 )
 
+const (
+
+	// EBSVolumeType (default standard):
+	//   "gp2" for General Purpose (SSD) volumes
+	//   "io1" for Provisioned IOPS (SSD) volumes,
+	//   "standard" for Magnetic volumes.
+	EBSVolumeType = "volume-type"
+
+	// Volume Aliases
+	volumeAliasMagnetic = "magnetic" // standard
+	volumeAliasSSD      = "ssd"      // gp2
+)
+
 // StorageProvider is defined on the jujustorage.ProviderRegistry interface.
 func (env *environ) StorageProvider(t jujustorage.ProviderType) (jujustorage.Provider, error) {
 	if t == constants.StorageProviderType {
@@ -70,7 +83,10 @@ func (g *storageProvider) Releasable() bool {
 
 // DefaultPools is defined on the jujustorage.Provider interface.
 func (g *storageProvider) DefaultPools() []*jujustorage.Config {
-	return nil
+	ssdPool, _ := jujustorage.NewConfig("ecs-docker-volume-gb2", constants.StorageProviderType, map[string]interface{}{
+		EBSVolumeType: volumeAliasSSD,
+	})
+	return []*jujustorage.Config{ssdPool}
 }
 
 // VolumeSource is defined on the jujustorage.Provider interface.

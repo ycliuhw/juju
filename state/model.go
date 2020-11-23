@@ -14,7 +14,7 @@ import (
 	jujutxn "github.com/juju/txn"
 	jujuutils "github.com/juju/utils/v2"
 	"github.com/juju/version"
-	"github.com/kr/pretty"
+	// "github.com/kr/pretty"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/mgo.v2/txn"
@@ -325,7 +325,7 @@ func (m ModelArgs) Validate() error {
 // models, perhaps for future use around cross model
 // relations.
 func (ctlr *Controller) NewModel(args ModelArgs) (_ *Model, _ *State, err error) {
-	logger.Criticalf("NewModel args -> %s", pretty.Sprint(args))
+	// logger.Criticalf("NewModel args -> %s", pretty.Sprint(args))
 	st := ctlr.pool.SystemState()
 
 	if err := args.Validate(); err != nil {

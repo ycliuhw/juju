@@ -14,12 +14,13 @@ import (
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
 	jujutxn "github.com/juju/txn"
+	"github.com/kr/pretty"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/mgo.v2/txn"
 
 	k8sprovider "github.com/juju/juju/caas/kubernetes/provider"
-	k8sconstants "github.com/juju/juju/caas/kubernetes/provider/constants"
+	// k8sconstants "github.com/juju/juju/caas/kubernetes/provider/constants"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/storage"
 	"github.com/juju/juju/storage/poolmanager"
@@ -1732,8 +1733,8 @@ func storageKind(storageType charm.StorageType) storage.StorageKind {
 }
 
 func validateStorageConstraints(sb *storageBackend, allCons map[string]StorageConstraints, charmMeta *charm.Meta) error {
-	err := validateStorageConstraintsAgainstCharm(sb, allCons, charmMeta)
-	if err != nil {
+	if err := validateStorageConstraintsAgainstCharm(sb, allCons, charmMeta); err != nil {
+		logger.Criticalf("validateStorageConstraints err -> %#v", err)
 		return errors.Trace(err)
 	}
 	// Ensure all stores have constraints specified. Defaults should have
@@ -1881,9 +1882,11 @@ func validateStoragePool(
 
 	// Validate any k8s config.
 	if sb.modelType == ModelTypeCAAS {
-		if err := k8sprovider.ValidateStorageProvider(providerType, poolConfig); err != nil {
-			return errors.Annotatef(err, "invalid storage config")
-		}
+		// !!!!
+		logger.Criticalf("ValidateStorageProvider providerType -> %q, poolConfig -> %#v", providerType, poolConfig)
+		// if err := k8sprovider.ValidateStorageProvider(providerType, poolConfig); err != nil {
+		// 	return errors.Annotatef(err, "invalid storage config")
+		// }
 	}
 
 	return nil
@@ -1964,9 +1967,13 @@ func storageConstraintsWithDefaults(
 	withDefaults := cons
 
 	// If no pool is specified, determine the pool from the env config and other constraints.
+	logger.Criticalf("storageConstraintsWithDefaults cons.Pool -> %q", cons.Pool)
 	if cons.Pool == "" {
 		kind := storageKind(charmStorage.Type)
+		logger.Criticalf("storageConstraintsWithDefaults modelType -> %q, kind -> %q, cons -> %#v", modelType, kind, cons)
+		logger.Criticalf("storageConstraintsWithDefaults cfg -> %s", pretty.Sprint(cfg))
 		poolName, err := defaultStoragePool(modelType, cfg, kind, cons)
+		logger.Criticalf("storageConstraintsWithDefaults defaultStoragePool poolName -> %q, , err -> %#v", poolName, err)
 		if err != nil {
 			return withDefaults, errors.Annotatef(err, "finding default pool for %q storage", name)
 		}
@@ -1991,11 +1998,15 @@ func storageConstraintsWithDefaults(
 // defaultStoragePool returns the default storage pool for the model.
 // The default pool is either user specified, or one that is registered by the provider itself.
 func defaultStoragePool(modelType ModelType, cfg *config.Config, kind storage.StorageKind, cons StorageConstraints) (string, error) {
+	getFallbackPoolForCaaS := func(cfg *config.Config) string {
+		return cfg.Type()
+	}
+
 	switch kind {
 	case storage.StorageKindBlock:
 		fallbackPool := string(provider.LoopProviderType)
 		if modelType == ModelTypeCAAS {
-			fallbackPool = string(k8sconstants.StorageProviderType)
+			fallbackPool = getFallbackPoolForCaaS(cfg)
 		}
 
 		emptyConstraints := StorageConstraints{}
@@ -2013,8 +2024,9 @@ func defaultStoragePool(modelType ModelType, cfg *config.Config, kind storage.St
 	case storage.StorageKindFilesystem:
 		fallbackPool := string(provider.RootfsProviderType)
 		if modelType == ModelTypeCAAS {
-			fallbackPool = string(k8sconstants.StorageProviderType)
+			fallbackPool = getFallbackPoolForCaaS(cfg)
 		}
+		logger.Criticalf("defaultStoragePool fallbackPool -> %q, cons -> %s", fallbackPool, pretty.Sprint(cons))
 		emptyConstraints := StorageConstraints{}
 		if cons == emptyConstraints {
 			return fallbackPool, nil

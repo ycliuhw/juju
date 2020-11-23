@@ -28,6 +28,7 @@ import (
 	jujutxn "github.com/juju/txn"
 	"github.com/juju/utils/v2"
 	"github.com/juju/version"
+	"github.com/kr/pretty"
 	"gopkg.in/mgo.v2"
 	"gopkg.in/mgo.v2/bson"
 	"gopkg.in/mgo.v2/txn"
@@ -1078,16 +1079,20 @@ func (st *State) AddApplication(args AddApplicationArgs) (_ *Application, err er
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	logger.Criticalf("AddApplication 1 args.Storage -> %s", pretty.Sprint(args.Storage))
 	if err := addDefaultStorageConstraints(sb, args.Storage, args.Charm.Meta()); err != nil {
 		return nil, errors.Trace(err)
 	}
+	logger.Criticalf("AddApplication 2 args.Storage -> %s", pretty.Sprint(args.Storage))
 	if err := validateStorageConstraints(sb, args.Storage, args.Charm.Meta()); err != nil {
+		logger.Criticalf("validateStorageConstraints err -> %#v, args.Storage -> %s, args.Charm.Meta() -> %s", err, pretty.Sprint(args.Storage), pretty.Sprint(args.Charm.Meta()))
 		return nil, errors.Trace(err)
 	}
-	storagePools := make(set.Strings)
-	for _, storageParams := range args.Storage {
-		storagePools.Add(storageParams.Pool)
-	}
+	// storagePools := make(set.Strings)
+	// // ???? not been used
+	// for _, storageParams := range args.Storage {
+	// 	storagePools.Add(storageParams.Pool)
+	// }
 
 	// ensure Devices
 	if args.Devices == nil {

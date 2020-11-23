@@ -12,6 +12,7 @@ import (
 	csparams "github.com/juju/charmrepo/v6/csclient/params"
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
+	"github.com/kr/pretty"
 
 	"github.com/juju/juju/core/application"
 	corecharm "github.com/juju/juju/core/charm"
@@ -54,7 +55,10 @@ type UnitAdder interface {
 }
 
 // DeployApplication takes a charm and various parameters and deploys it.
-func DeployApplication(st ApplicationDeployer, args DeployApplicationParams) (Application, error) {
+func DeployApplication(st ApplicationDeployer, args DeployApplicationParams) (_ Application, err error) {
+	defer func() {
+		logger.Criticalf("DeployApplication err -> %#v, args.Storage -> %s", err, pretty.Sprint(args.Storage))
+	}()
 	charmConfig, err := args.Charm.Config().ValidateSettings(args.CharmConfig)
 	if err != nil {
 		return nil, errors.Trace(err)
