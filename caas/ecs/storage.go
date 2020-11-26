@@ -63,7 +63,8 @@ func (g *storageProvider) ValidateConfig(cfg *jujustorage.Config) error {
 
 // Supports is defined on the jujustorage.Provider interface.
 func (g *storageProvider) Supports(k jujustorage.StorageKind) bool {
-	return k == jujustorage.StorageKindBlock
+	return k == jujustorage.StorageKindBlock ||
+		k == jujustorage.StorageKindFilesystem // !!!
 }
 
 // Scope is defined on the jujustorage.Provider interface.

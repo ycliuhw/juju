@@ -27,5 +27,5 @@ func InsecureKeyProfile() (crypto.Signer, error) {
 var OriginalDefaultKeyProfile = pki.DefaultKeyProfile
 
 func init() {
-	pki.DefaultKeyProfile = InsecureKeyProfile
+	// pki.DefaultKeyProfile = InsecureKeyProfile
 }

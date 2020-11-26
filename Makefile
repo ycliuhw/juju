@@ -241,7 +241,6 @@ operator-image: image-check-build
 
 push-operator-image: operator-image
 ## push-operator-image: Push up the newly built operator image via docker
-	@:$(if $(value JUJU_BUILD_NUMBER),, $(error Undefined JUJU_BUILD_NUMBER))
 	docker push "$(shell ${OPERATOR_IMAGE_PATH})"
 
 push-release-operator-image: operator-image

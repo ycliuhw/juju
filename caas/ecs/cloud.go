@@ -65,7 +65,7 @@ func (p environProvider) Validate(cfg, old *config.Config) (*config.Config, erro
 func (p environProvider) newConfig(cfg *config.Config) (*brokerConfig, error) {
 	valid, err := p.Validate(cfg, nil)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	return &brokerConfig{valid, valid.UnknownAttrs()}, nil
 }
@@ -95,11 +95,11 @@ func validateConfig(cfg, old *config.Config) (*brokerConfig, error) {
 	logger.Criticalf("validateConfig cfg -> %#v, old -> %#v", cfg, old)
 	// Check for valid changes for the base config values.
 	if err := config.Validate(cfg, old); err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	validated, err := cfg.ValidateUnknownAttrs(providerConfigFields, providerConfigDefaults)
 	if err != nil {
-		return nil, err
+		return nil, errors.Trace(err)
 	}
 	return &brokerConfig{Config: cfg, attrs: validated}, nil
 }

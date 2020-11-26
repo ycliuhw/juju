@@ -23,9 +23,9 @@ import (
 	"github.com/juju/juju/core/watcher"
 )
 
-// Logger is here to stop the desire of creating a package level Logger.
-// Don't do this, instead use the one passed as manifold config.
-var logger interface{}
+// // Logger is here to stop the desire of creating a package level Logger.
+// // Don't do this, instead use the one passed as manifold config.
+// var logger interface{}
 
 // CAASProvisionerFacade exposes CAAS provisioning functionality to a worker.
 type CAASProvisionerFacade interface {
@@ -83,7 +83,7 @@ func NewProvisionerWorker(config Config) (worker.Worker, error) {
 			Clock:        config.Clock,
 			IsFatal:      func(error) bool { return false },
 			RestartDelay: 3 * time.Second,
-			Logger:       config.Logger,
+			Logger:       config.Logger.Child("runner"),
 		}),
 	}
 	err := catacomb.Invoke(catacomb.Plan{
@@ -104,7 +104,10 @@ func (p *provisioner) Wait() error {
 	return p.catacomb.Wait()
 }
 
-func (p *provisioner) loop() error {
+func (p *provisioner) loop() (err error) {
+	defer func() {
+		p.logger.Warningf("provisioner.loop err -> %#v ", err)
+	}()
 	appWatcher, err := p.facade.WatchApplications()
 	if err != nil {
 		return errors.Trace(err)
@@ -112,7 +115,7 @@ func (p *provisioner) loop() error {
 	if err := p.catacomb.Add(appWatcher); err != nil {
 		return errors.Trace(err)
 	}
-
+	p.logger.Warningf("provisioner modelTag -> %q, broker -> %#v ", p.modelTag, p.broker)
 	for {
 		select {
 		case <-p.catacomb.Dying():
@@ -123,6 +126,7 @@ func (p *provisioner) loop() error {
 			}
 			for _, app := range apps {
 				existingWorker, err := p.runner.Worker(app, nil)
+				p.logger.Warningf("provisioner app -> %q, existingWorker -> %#v, err -> %#v", app, existingWorker, err)
 				if err == worker.ErrNotFound {
 					// Ignore.
 				} else if err == worker.ErrDead {
@@ -143,7 +147,7 @@ func (p *provisioner) loop() error {
 					Broker:   p.broker,
 					ModelTag: p.modelTag,
 					Clock:    p.clock,
-					Logger:   p.logger,
+					Logger:   p.logger.Child("applicationworker"),
 				}
 				startFunc := p.newAppWorker(config)
 				err = p.runner.StartWorker(app, startFunc)

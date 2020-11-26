@@ -166,7 +166,10 @@ func (a *API) ProvisioningInfo(args params.Entities) (params.CAASApplicationProv
 	return result, nil
 }
 
-func (a *API) provisioningInfo(appName names.ApplicationTag) (*params.CAASApplicationProvisioningInfo, error) {
+func (a *API) provisioningInfo(appName names.ApplicationTag) (info *params.CAASApplicationProvisioningInfo, err error) {
+	defer func() {
+		logger.Criticalf("API) provisioningInfo info -> %#v, err -> %#v", info, err)
+	}()
 	app, err := a.state.Application(appName.Id())
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -563,7 +566,12 @@ func (a *API) applicationFilesystemParams(
 	app Application,
 	controllerConfig controller.Config,
 	modelConfig *config.Config,
-) ([]params.KubernetesFilesystemParams, error) {
+) (_ []params.KubernetesFilesystemParams, err error) {
+	defer func() {
+		if err != nil {
+			logger.Criticalf("API) applicationFilesystemParams err -> %#v, %#v", err, err.Error())
+		}
+	}()
 	storageConstraints, err := app.StorageConstraints()
 	if err != nil {
 		return nil, errors.Trace(err)

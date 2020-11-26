@@ -1391,7 +1391,9 @@ func FilesystemMountPoint(
 ) (string, error) {
 	storageDir, err := paths.StorageDir(series)
 	if err != nil {
-		return "", errors.Trace(err)
+		logger.Errorf("FilesystemMountPoint storageDir -> %#v, err -> %#v", storageDir, err)
+		// return "", errors.Trace(err)
+		storageDir = "/var/lib/juju"
 	}
 	if strings.HasPrefix(meta.Location, storageDir) {
 		return "", errors.Errorf(

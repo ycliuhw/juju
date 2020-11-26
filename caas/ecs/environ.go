@@ -52,15 +52,24 @@ func newEnviron(
 	clusterName string,
 	clock jujuclock.Clock,
 	cloud cloudspec.CloudSpec, envCfg *config.Config,
-) (*environ, error) {
+) (_ *environ, err error) {
+	newCfg, err := providerInstance.newConfig(envCfg)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	modelUUID := newCfg.UUID()
+	if modelUUID == "" {
+		return nil, errors.NotValidf("modelUUID is required")
+	}
+
 	env := &environ{
 		name:           envCfg.Name(),
-		clock:          clock,
 		clusterName:    clusterName,
+		clock:          clock,
 		cloud:          cloud,
+		modelUUID:      modelUUID,
 		envCfgUnlocked: envCfg,
 	}
-	var err error
 	if env.clientUnlocked, err = newECSClient(cloud); err != nil {
 		return nil, errors.Trace(err)
 	}

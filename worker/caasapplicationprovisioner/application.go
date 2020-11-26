@@ -4,7 +4,9 @@
 package caasapplicationprovisioner
 
 import (
+	"fmt"
 	"reflect"
+	"runtime/debug"
 	"strings"
 	"time"
 
@@ -91,6 +93,12 @@ func (a *appWorker) Wait() error {
 }
 
 func (a *appWorker) loop() error {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in appWorker.loop", r, string(debug.Stack()))
+		}
+	}()
+
 	charmURL, err := a.facade.ApplicationCharmURL(a.name)
 	if errors.IsNotFound(err) {
 		a.logger.Debugf("application %q removed", a.name)
@@ -131,6 +139,7 @@ func (a *appWorker) loop() error {
 
 	handleChange := func() error {
 		appLife, err = a.facade.Life(a.name)
+		a.logger.Warningf("appWorker appLife -> %q, err -> %#v", appLife, err)
 		if errors.IsNotFound(err) {
 			appLife = life.Dead
 		} else if err != nil {
@@ -196,16 +205,16 @@ func (a *appWorker) loop() error {
 			// Respond to state changes
 			err = handleChange()
 			if err != nil {
-				return nil
+				return errors.Trace(err)
 			}
 		case <-a.changes:
 			// Respond to life changes
 			err = handleChange()
 			if err != nil {
-				return nil
+				return errors.Trace(err)
 			}
 		case <-appChanges:
-			// Repond to changes in provider application
+			// Respond to changes in provider application
 			lastReportedStatus, err = a.updateState(app, false, lastReportedStatus)
 			if err != nil {
 				return errors.Trace(err)
@@ -345,6 +354,7 @@ func (a *appWorker) alive(app caas.Application) error {
 	a.logger.Debugf("ensuring application %q exists", a.name)
 
 	provisionInfo, err := a.facade.ProvisioningInfo(a.name)
+	a.logger.Warningf("appWorker provisionInfo -> %#v, err -> %#v", provisionInfo, err)
 	if err != nil {
 		return errors.Annotate(err, "failed to get provisioning info")
 	}
@@ -353,11 +363,13 @@ func (a *appWorker) alive(app caas.Application) error {
 	}
 
 	charmInfo, err := a.facade.CharmInfo(provisionInfo.CharmURL.String())
+	a.logger.Warningf("appWorker charmInfo -> %#v, err -> %#v", charmInfo, err)
 	if err != nil {
 		return errors.Annotatef(err, "failed to get application charm deployment metadata for %q", a.name)
 	}
 
 	appState, err := app.Exists()
+	a.logger.Warningf("appWorker appState -> %#v, err -> %#v", appState, err)
 	if err != nil {
 		return errors.Annotatef(err, "failed get application state for %q", a.name)
 	}
@@ -369,11 +381,13 @@ func (a *appWorker) alive(app caas.Application) error {
 	}
 
 	images, err := a.facade.ApplicationOCIResources(a.name)
+	a.logger.Warningf("appWorker images -> %#v, err -> %#v", images, err)
 	if err != nil {
 		return errors.Annotate(err, "failed to get oci image resources")
 	}
 
 	baseSystem, err := systems.ParseSystemFromSeries(provisionInfo.Series)
+	a.logger.Warningf("appWorker baseSystem -> %#v, err -> %#v", baseSystem, err)
 	if err != nil {
 		return errors.Annotate(err, "failed to parse series as a system")
 	}
@@ -388,16 +402,17 @@ func (a *appWorker) alive(app caas.Application) error {
 		charmBaseImage = image
 	} else {
 		charmBaseImage.RegistryPath, err = podcfg.ImageForSystem(provisionInfo.ImageRepo, baseSystem)
+		a.logger.Warningf("appWorker charmBaseImage 1 -> %#v, err -> %#v", charmBaseImage, err)
 		if err != nil {
 			return errors.Annotate(err, "failed to get image for system")
 		}
 	}
+	a.logger.Warningf("appWorker charmBaseImage 2 -> %#v, err -> %#v", charmBaseImage, err)
 
 	containers := make(map[string]caas.ContainerConfig)
 	for k, v := range ch.Meta().Containers {
-		container := caas.ContainerConfig{
-			Name: k,
-		}
+		a.logger.Warningf("appWorker k -> %#v, v -> %#v", k, v)
+		container := caas.ContainerConfig{Name: k}
 		if len(v.Systems) != 1 {
 			return errors.NotValidf("containers currently only support declaring one system")
 		}
@@ -410,6 +425,7 @@ func (a *appWorker) alive(app caas.Application) error {
 			container.Image = image
 		} else {
 			container.Image.RegistryPath, err = podcfg.ImageForSystem(provisionInfo.ImageRepo, system)
+			a.logger.Warningf("appWorker container.Image.RegistryPath -> %#v, err -> %#v", container.Image.RegistryPath, err)
 			if err != nil {
 				return errors.Annotate(err, "failed to get image for system")
 			}
@@ -420,6 +436,7 @@ func (a *appWorker) alive(app caas.Application) error {
 				Path:        m.Location,
 			})
 		}
+		a.logger.Warningf("appWorker k -> %#v, container -> %#v", k, container)
 		containers[k] = container
 	}
 
@@ -442,6 +459,7 @@ func (a *appWorker) alive(app caas.Application) error {
 	// TODO(embedded): implement Equals method for caas.ApplicationConfig
 	if !reflect.DeepEqual(config, a.lastApplied) {
 		err = app.Ensure(config)
+		a.logger.Warningf("appWorker.Ensure config -> %#v, err -> %#v", config, err)
 		if err != nil {
 			return errors.Annotate(err, "ensuring application")
 		}
@@ -453,6 +471,7 @@ func (a *appWorker) alive(app caas.Application) error {
 	}
 
 	err = a.facade.SetOperatorStatus(a.name, status.Active, reason, nil)
+	a.logger.Warningf("appWorker.SetOperatorStatus reason -> %#v, err -> %#v", reason, err)
 	if err != nil {
 		return errors.Trace(err)
 	}

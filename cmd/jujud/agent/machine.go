@@ -236,6 +236,12 @@ func (a *machineAgentCmd) Init(args []string) error {
 
 // Run instantiates a MachineAgent and runs it.
 func (a *machineAgentCmd) Run(c *cmd.Context) error {
+	defer func() {
+		if r := recover(); r != nil {
+			fmt.Println("Recovered in machineAgentCmd.Run", r)
+		}
+	}()
+
 	machineAgent, err := a.machineAgentFactory(a.agentTag, a.isCaas)
 	if err != nil {
 		return errors.Trace(err)
