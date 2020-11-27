@@ -155,7 +155,9 @@ func (env *environ) Create(envcontext.ProviderCallContext, environs.CreateParams
 }
 
 func (env *environ) CurrentModel() string {
-	return ""
+	env.lock.Lock()
+	defer env.lock.Unlock()
+	return env.envCfgUnlocked.Name()
 }
 
 // DeleteService deletes the specified service with all related resources.

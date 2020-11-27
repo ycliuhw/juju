@@ -42,6 +42,9 @@ func newApplication(
 	client ecsiface.ECSAPI,
 	clock clock.Clock,
 ) caas.Application {
+	// TODO: prefix-modelName to all resource names?
+	// Because ecs doesnot have namespace!!!
+	// name = modelName + "-" + name
 	return &app{
 		name:           name,
 		clusterName:    clusterName,
@@ -50,6 +53,15 @@ func newApplication(
 		deploymentType: deploymentType,
 		client:         client,
 		clock:          clock,
+	}
+}
+
+func (a *app) labels() map[string]*string {
+	// TODO
+	return map[string]*string{
+		"App":       aws.String(a.name),
+		"ModelName": aws.String(a.modelName),
+		"ModelUUID": aws.String(a.modelUUID),
 	}
 }
 
@@ -208,27 +220,49 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 		Volumes: []*ecs.Volume{
 			// TODO!!!
 			{
-				Host: &ecs.HostVolumeProperties{
-					SourcePath: aws.String("/opt/charm-data/var/lib/juju"),
-				},
+				// Host: &ecs.HostVolumeProperties{
+				// 	SourcePath: aws.String("/opt/charm-data/var/lib/juju"),
+				// },
 				Name: aws.String("var-lib-juju"),
+				DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
+					Scope:  aws.String("task"),
+					Driver: aws.String("local"),
+					Labels: a.labels(),
+					// Autoprovision: aws.Bool(true),
+				},
 			},
 			{
-				Host: &ecs.HostVolumeProperties{
-					SourcePath: aws.String("/opt/charm-data/bin"),
-				},
+				// Host: &ecs.HostVolumeProperties{
+				// 	SourcePath: aws.String("/opt/charm-data/bin"),
+				// },
 				Name: aws.String("charm-data-bin"),
+				DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
+					Scope:  aws.String("task"),
+					Driver: aws.String("local"),
+					Labels: a.labels(),
+					// Autoprovision: aws.Bool(true),
+				},
 			},
 			{
-				Host: &ecs.HostVolumeProperties{
-					SourcePath: aws.String("/opt/charm-data/containers/cockroachdb"),
-				},
+				// Host: &ecs.HostVolumeProperties{
+				// 	SourcePath: aws.String("/opt/charm-data/containers/cockroachdb"),
+				// },
 				Name: aws.String("charm-data-container"),
+				DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
+					Scope:  aws.String("task"),
+					Driver: aws.String("local"),
+					Labels: a.labels(),
+					// Autoprovision: aws.Bool(true),
+				},
 			},
 		},
 	}
 
 	for _, v := range containers {
+		// TODO: https://aws.amazon.com/blogs/compute/amazon-ecs-and-docker-volume-drivers-amazon-ebs/
+		// to use EBS volumes, it requires some docker storage plugin installed in the
+		// container instance!!!
+		// disable persistence storage or Juju have to manage those plugins????
 		container := &ecs.ContainerDefinition{
 			Name:  aws.String(v.Name),
 			Image: aws.String(v.Image.RegistryPath),
@@ -278,6 +312,8 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 // name, agent path, and application config.
 func (a *app) Ensure(config caas.ApplicationConfig) (err error) {
 	logger.Criticalf("app.Ensure config -> %s", pretty.Sprint(config))
+	logger.Criticalf("app.Ensure a.labels() -> %s", pretty.Sprint(a.labels()))
+
 	if err := a.registerTaskDefinition(config); err != nil {
 		return errors.Trace(err)
 	}
@@ -355,6 +391,7 @@ func (a *app) registerTaskDefinition(config caas.ApplicationConfig) error {
 
 func (a *app) ensureECSService() (err error) {
 	input := &ecs.CreateServiceInput{
+		Cluster:        aws.String(a.clusterName),
 		DesiredCount:   aws.Int64(1),
 		ServiceName:    aws.String(a.name),
 		TaskDefinition: aws.String(a.name),

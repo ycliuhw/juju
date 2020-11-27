@@ -980,7 +980,7 @@ func (c *controllerStack) buildContainerSpecForController(statefulset *apps.Stat
 		// add container API server.
 		containerSpec = append(containerSpec, core.Container{
 			Name:            apiServerContainerName,
-			ImagePullPolicy: core.PullIfNotPresent,
+			ImagePullPolicy: core.PullAlways,
 			Image:           c.pcfg.GetControllerImagePath(),
 			Command: []string{
 				"/bin/sh",
