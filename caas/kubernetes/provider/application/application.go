@@ -1033,6 +1033,7 @@ func (a *app) applicationPodSpec(config caas.ApplicationConfig) (*corev1.PodSpec
 					MountPath: "/charm/bin",
 					SubPath:   "charm/bin",
 				},
+				// DO we need this in init container????
 				{
 					Name:      charmVolumeName,
 					MountPath: "/charm/containers",

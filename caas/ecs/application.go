@@ -21,6 +21,7 @@ import (
 	"github.com/juju/juju/core/paths"
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/core/watcher/watchertest"
+	jujustorage "github.com/juju/juju/storage"
 )
 
 type app struct {
@@ -42,7 +43,7 @@ func newApplication(
 	client ecsiface.ECSAPI,
 	clock clock.Clock,
 ) caas.Application {
-	// TODO: prefix-modelName to all resource names?
+	// TODO: prefix modelName to all resource names?
 	// Because ecs doesnot have namespace!!!
 	// name = modelName + "-" + name
 	return &app{
@@ -77,6 +78,54 @@ func strPtrSlice(in ...string) (out []*string) {
 	return out
 }
 
+func (a *app) volumeName(storageName string) string {
+	return fmt.Sprintf("%s-%s", a.name, storageName)
+}
+
+// getMountPathForFilesystem returns mount path.
+func getMountPathForFilesystem(idx int, appName string, fs jujustorage.KubernetesFilesystemParams) string {
+	if fs.Attachment != nil {
+		return fs.Attachment.Path
+	}
+	return fmt.Sprintf(
+		"%s/fs/%s/%s/%d",
+		"/var/lib/juju",
+		appName, fs.StorageName, idx,
+	)
+}
+
+func (a *app) handleFileSystems(filesystems []jujustorage.KubernetesFilesystemParams) (vols []*ecs.Volume, mounts []*ecs.MountPoint) {
+	for idx, fs := range filesystems {
+		vol := &ecs.Volume{
+			Name: aws.String(a.volumeName(fs.StorageName)),
+			DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
+				Scope:         aws.String("shared"),
+				Autoprovision: aws.Bool(true),
+				Driver:        aws.String("rexray/ebs"), // TODO: fs.Attributes["Driver"] ?????
+				Labels:        a.labels(),               // TODO: merge with fs.ResourceTags !!!
+				DriverOpts: map[string]*string{
+					"volumetype": aws.String("gp2"),                                // TODO!!!
+					"size":       aws.String(strconv.FormatUint(fs.Size/1024, 10)), // unit of size here should be `Gi`
+				},
+			},
+		}
+		vols = append(vols, vol)
+
+		readOnly := false
+		if fs.Attachment != nil {
+			readOnly = fs.Attachment.ReadOnly
+		}
+		mounts = append(mounts, &ecs.MountPoint{
+			ContainerPath: aws.String(getMountPathForFilesystem(
+				idx, a.name, fs,
+			)),
+			SourceVolume: vol.Name,
+			ReadOnly:     aws.Bool(readOnly),
+		})
+	}
+	return vols, mounts
+}
+
 func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.RegisterTaskDefinitionInput, error) {
 
 	jujuDataDir, err := paths.DataDir("kubernetes") // !!!
@@ -95,18 +144,21 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 		return containers[i].Name < containers[j].Name
 	})
 
+	volumes, volumeMounts := a.handleFileSystems(config.Filesystems)
+
 	input := &ecs.RegisterTaskDefinitionInput{
 		Family:      aws.String(a.name),
 		TaskRoleArn: aws.String(""),
 		ContainerDefinitions: []*ecs.ContainerDefinition{
 			// init container
 			{
-				Name:       aws.String("charm-init"),
-				Image:      aws.String(config.AgentImagePath),
-				Cpu:        aws.Int64(10),
-				Memory:     aws.Int64(512),
-				Essential:  aws.Bool(false),
-				EntryPoint: strPtrSlice("/opt/k8sagent"),
+				Name:             aws.String("charm-init"),
+				Image:            aws.String(config.AgentImagePath),
+				WorkingDirectory: aws.String(jujuDataDir),
+				Cpu:              aws.Int64(10),
+				Memory:           aws.Int64(512),
+				Essential:        aws.Bool(false),
+				EntryPoint:       strPtrSlice("/opt/k8sagent"),
 				Command: strPtrSlice(
 					"init",
 					"--data-dir",
@@ -114,7 +166,6 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 					"--bin-dir",
 					"/charm/bin",
 				),
-				WorkingDirectory: aws.String(jujuDataDir),
 				Environment: []*ecs.KeyValuePair{
 					{
 						Name:  aws.String("JUJU_CONTAINER_NAMES"),
@@ -159,101 +210,79 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 						ContainerPath: aws.String("/charm/bin"),
 						SourceVolume:  aws.String("charm-data-bin"),
 					},
-					{
-						ContainerPath: aws.String("/charm/container"),
-						SourceVolume:  aws.String("charm-data-container"),
-					},
-				},
-			},
-			// container agent.
-			{
-				Name:   aws.String("charm"),
-				Image:  aws.String(config.AgentImagePath),
-				Cpu:    aws.Int64(10),
-				Memory: aws.Int64(512),
-				DependsOn: []*ecs.ContainerDependency{
-					{
-						ContainerName: aws.String("charm-init"),
-						Condition:     aws.String("COMPLETE"),
-					},
-				},
-				Essential:  aws.Bool(true),
-				EntryPoint: strPtrSlice("/charm/bin/k8sagent"),
-				Command: strPtrSlice(
-					"unit",
-					"--data-dir", jujuDataDir,
-					"--charm-modified-version", strconv.Itoa(config.CharmModifiedVersion),
-					"--append-env",
-					"PATH=$PATH:/charm/bin",
-				),
-				// TODO: Health check/prob
-				Environment: []*ecs.KeyValuePair{
-					{
-						Name:  aws.String("JUJU_CONTAINER_NAMES"),
-						Value: aws.String(strings.Join(containerNames, ",")),
-					},
-					{
-						Name: aws.String(
-							"HTTP_PROBE_PORT", // constants.EnvAgentHTTPProbePort
-						),
-						Value: aws.String(
-							"3856", // constants.AgentHTTPProbePort
-						),
-					},
-				},
-				MountPoints: []*ecs.MountPoint{
-					{
-						ContainerPath: aws.String("/var/lib/juju"),
-						SourceVolume:  aws.String("var-lib-juju"),
-					},
-					{
-						ContainerPath: aws.String("/charm/bin"),
-						SourceVolume:  aws.String("charm-data-bin"),
-					},
-					{
-						ContainerPath: aws.String("/charm/container"),
-						SourceVolume:  aws.String("charm-data-container"),
-					},
+					// DO we need this in init container?
+					// {
+					// 	ContainerPath: aws.String("/charm/containers"),
+					// 	SourceVolume:  aws.String("charm-data-containers"),
+					// },
 				},
 			},
 		},
-		Volumes: []*ecs.Volume{
-			// TODO!!!
+		Volumes: append(volumes, []*ecs.Volume{
+			// TODO: ensure no vol.Name conflict.
 			{
-				// Host: &ecs.HostVolumeProperties{
-				// 	SourcePath: aws.String("/opt/charm-data/var/lib/juju"),
-				// },
 				Name: aws.String("var-lib-juju"),
 				DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
 					Scope:  aws.String("task"),
 					Driver: aws.String("local"),
 					Labels: a.labels(),
-					// Autoprovision: aws.Bool(true),
 				},
 			},
 			{
-				// Host: &ecs.HostVolumeProperties{
-				// 	SourcePath: aws.String("/opt/charm-data/bin"),
-				// },
 				Name: aws.String("charm-data-bin"),
 				DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
 					Scope:  aws.String("task"),
 					Driver: aws.String("local"),
 					Labels: a.labels(),
-					// Autoprovision: aws.Bool(true),
 				},
 			},
+		}...),
+	}
+	// container agent.
+	charmContainerDefinition := &ecs.ContainerDefinition{
+		Name:             aws.String("charm"),
+		Image:            aws.String(config.AgentImagePath),
+		WorkingDirectory: aws.String(jujuDataDir),
+		Cpu:              aws.Int64(10),
+		Memory:           aws.Int64(512),
+		DependsOn: []*ecs.ContainerDependency{
 			{
-				// Host: &ecs.HostVolumeProperties{
-				// 	SourcePath: aws.String("/opt/charm-data/containers/cockroachdb"),
-				// },
-				Name: aws.String("charm-data-container"),
-				DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
-					Scope:  aws.String("task"),
-					Driver: aws.String("local"),
-					Labels: a.labels(),
-					// Autoprovision: aws.Bool(true),
-				},
+				ContainerName: aws.String("charm-init"),
+				Condition:     aws.String("COMPLETE"),
+			},
+		},
+		Essential:  aws.Bool(true),
+		EntryPoint: strPtrSlice("/charm/bin/k8sagent"),
+		Command: strPtrSlice(
+			"unit",
+			"--data-dir", jujuDataDir,
+			"--charm-modified-version", strconv.Itoa(config.CharmModifiedVersion),
+			"--append-env",
+			"PATH=$PATH:/charm/bin",
+		),
+		// TODO: Health check/prob
+		Environment: []*ecs.KeyValuePair{
+			{
+				Name:  aws.String("JUJU_CONTAINER_NAMES"),
+				Value: aws.String(strings.Join(containerNames, ",")),
+			},
+			{
+				Name: aws.String(
+					"HTTP_PROBE_PORT", // constants.EnvAgentHTTPProbePort
+				),
+				Value: aws.String(
+					"3856", // constants.AgentHTTPProbePort
+				),
+			},
+		},
+		MountPoints: []*ecs.MountPoint{
+			{
+				ContainerPath: aws.String(jujuDataDir),
+				SourceVolume:  aws.String("var-lib-juju"),
+			},
+			{
+				ContainerPath: aws.String("/charm/bin"),
+				SourceVolume:  aws.String("charm-data-bin"),
 			},
 		},
 	}
@@ -288,23 +317,35 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 					Value: aws.String(v.Name),
 				},
 			},
-			MountPoints: []*ecs.MountPoint{
-				{
-					ContainerPath: aws.String("/var/lib/juju"),
-					SourceVolume:  aws.String("var-lib-juju"),
-				},
-				{
+			MountPoints: append(volumeMounts,
+				// TODO: ensure no vol.Name conflict.
+				&ecs.MountPoint{
 					ContainerPath: aws.String("/charm/bin"),
 					SourceVolume:  aws.String("charm-data-bin"),
+					ReadOnly:      aws.Bool(true),
 				},
-				{
-					ContainerPath: aws.String("/charm/container"),
-					SourceVolume:  aws.String("charm-data-container"),
-				},
+			),
+		}
+		volume := &ecs.Volume{
+			Name: aws.String(fmt.Sprintf("charm-data-container-%s", v.Name)),
+			DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
+				Scope:  aws.String("task"),
+				Driver: aws.String("local"),
+				Labels: a.labels(),
 			},
 		}
+		input.Volumes = append(input.Volumes, volume)
+		container.MountPoints = append(container.MountPoints, &ecs.MountPoint{
+			ContainerPath: aws.String("/charm/container"),
+			SourceVolume:  volume.Name,
+		})
 		input.ContainerDefinitions = append(input.ContainerDefinitions, container)
+		charmContainerDefinition.MountPoints = append(charmContainerDefinition.MountPoints, &ecs.MountPoint{
+			ContainerPath: aws.String(fmt.Sprintf("/charm/containers/%s", v.Name)),
+			SourceVolume:  volume.Name,
+		})
 	}
+	input.ContainerDefinitions = append(input.ContainerDefinitions, charmContainerDefinition)
 	return input, nil
 }
 
@@ -313,11 +354,16 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 func (a *app) Ensure(config caas.ApplicationConfig) (err error) {
 	logger.Criticalf("app.Ensure config -> %s", pretty.Sprint(config))
 	logger.Criticalf("app.Ensure a.labels() -> %s", pretty.Sprint(a.labels()))
-
-	if err := a.registerTaskDefinition(config); err != nil {
+	result, err := a.registerTaskDefinition(config)
+	if err != nil {
 		return errors.Trace(err)
 	}
-	return errors.Trace(a.ensureECSService())
+	taskDefinitionID := fmt.Sprintf(
+		"%s:%s",
+		aws.StringValue(result.TaskDefinition.Family),
+		strconv.FormatInt(aws.Int64Value(result.TaskDefinition.Revision), 10),
+	)
+	return errors.Trace(a.ensureECSService(taskDefinitionID))
 }
 
 // Exists indicates if the application for the specified
@@ -359,10 +405,10 @@ func (a *app) WatchReplicas() (watcher.NotifyWatcher, error) {
 	return watchertest.NewMockNotifyWatcher(ch), nil
 }
 
-func (a *app) registerTaskDefinition(config caas.ApplicationConfig) error {
+func (a *app) registerTaskDefinition(config caas.ApplicationConfig) (*ecs.RegisterTaskDefinitionOutput, error) {
 	input, err := a.applicationTaskDefinition(config)
 	if err != nil {
-		return errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
 
 	result, err := a.client.RegisterTaskDefinition(input)
@@ -384,21 +430,21 @@ func (a *app) registerTaskDefinition(config caas.ApplicationConfig) error {
 			// Message from an error.
 			fmt.Println(err.Error())
 		}
-		return errors.Trace(err)
+		return nil, errors.Trace(err)
 	}
-	return nil
+	return result, nil
 }
 
-func (a *app) ensureECSService() (err error) {
+func (a *app) ensureECSService(taskDefinitionID string) (err error) {
 	input := &ecs.CreateServiceInput{
 		Cluster:        aws.String(a.clusterName),
 		DesiredCount:   aws.Int64(1),
 		ServiceName:    aws.String(a.name),
-		TaskDefinition: aws.String(a.name),
+		TaskDefinition: aws.String(taskDefinitionID),
 	}
 
 	result, err := a.client.CreateService(input)
-	logger.Criticalf("app.ensureECSService err -> %#v result -> %s", err, pretty.Sprint(result))
+	logger.Criticalf("app.ensureECSService %q err -> %#v result -> %s", taskDefinitionID, err, pretty.Sprint(result))
 	if err != nil {
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
