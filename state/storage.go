@@ -1999,6 +1999,7 @@ func storageConstraintsWithDefaults(
 // The default pool is either user specified, or one that is registered by the provider itself.
 func defaultStoragePool(modelType ModelType, cfg *config.Config, kind storage.StorageKind, cons StorageConstraints) (string, error) {
 	getFallbackPoolForCaaS := func(cfg *config.Config) string {
+		// FIX here, should be cloud type but not model type!!!!!!!!!!!!!
 		return cfg.Type()
 	}
 
@@ -2016,6 +2017,8 @@ func defaultStoragePool(modelType ModelType, cfg *config.Config, kind storage.St
 		}
 		// Either size or count specified, use env default.
 		defaultPool, ok := cfg.StorageDefaultBlockSource()
+		// k8s: defaultPool == "kubernetes"
+		// ecs: defaultPool == "ecs"
 		if !ok {
 			defaultPool = fallbackPool
 		}

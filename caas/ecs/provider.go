@@ -12,6 +12,7 @@ import (
 	"github.com/juju/loggo"
 
 	"github.com/juju/juju/caas"
+	"github.com/juju/juju/caas/ecs/constants"
 	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/environs"
 	"github.com/juju/juju/environs/cloudspec"
@@ -67,12 +68,12 @@ func (p environProvider) PrepareConfig(args environs.PrepareConfigParams) (*conf
 	}
 	// Set the default storage sources.
 	attrs := make(map[string]interface{})
-	// if _, ok := args.Config.StorageDefaultBlockSource(); !ok {
-	// 	attrs[config.StorageDefaultBlockSourceKey] = constants.StorageProviderType
-	// }
-	// if _, ok := args.Config.StorageDefaultFilesystemSource(); !ok {
-	// 	attrs[config.StorageDefaultFilesystemSourceKey] = constants.StorageProviderType
-	// }
+	if _, ok := args.Config.StorageDefaultBlockSource(); !ok {
+		attrs[config.StorageDefaultBlockSourceKey] = constants.StorageProviderType
+	}
+	if _, ok := args.Config.StorageDefaultFilesystemSource(); !ok {
+		attrs[config.StorageDefaultFilesystemSourceKey] = constants.StorageProviderType
+	}
 	return args.Config.Apply(attrs)
 }
 

@@ -4,10 +4,12 @@
 package ecs
 
 import (
+	"context"
 	"fmt"
 	"sort"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/aws/aws-sdk-go/aws"
 	"github.com/aws/aws-sdk-go/aws/awserr"
@@ -19,6 +21,7 @@ import (
 
 	"github.com/juju/juju/caas"
 	"github.com/juju/juju/core/paths"
+	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/core/watcher/watchertest"
 	jujustorage "github.com/juju/juju/storage"
@@ -94,17 +97,22 @@ func getMountPathForFilesystem(idx int, appName string, fs jujustorage.Kubernete
 	)
 }
 
-func (a *app) handleFileSystems(filesystems []jujustorage.KubernetesFilesystemParams) (vols []*ecs.Volume, mounts []*ecs.MountPoint) {
+func (a *app) handleFileSystems(filesystems []jujustorage.KubernetesFilesystemParams) (vols []*ecs.Volume, mounts []*ecs.MountPoint, err error) {
 	for idx, fs := range filesystems {
+		ebsCfg, err := newEbsConfig(fs.Attributes)
+		if err != nil {
+			// This should never happen because it's been validated `storageProvider.ValidateConfig`.
+			return nil, nil, errors.NotValidf("storage attribute for %q", fs.StorageName)
+		}
 		vol := &ecs.Volume{
 			Name: aws.String(a.volumeName(fs.StorageName)),
 			DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
 				Scope:         aws.String("shared"),
 				Autoprovision: aws.Bool(true),
-				Driver:        aws.String("rexray/ebs"), // TODO: fs.Attributes["Driver"] ?????
-				Labels:        a.labels(),               // TODO: merge with fs.ResourceTags !!!
+				Driver:        aws.String(ebsCfg.driver), // TODO: fs.Attributes["Driver"] ?????
+				Labels:        a.labels(),                // TODO: merge with fs.ResourceTags !!!
 				DriverOpts: map[string]*string{
-					"volumetype": aws.String("gp2"),                                // TODO!!!
+					"volumetype": aws.String(ebsCfg.volumeType),                    // TODO!!!
 					"size":       aws.String(strconv.FormatUint(fs.Size/1024, 10)), // unit of size here should be `Gi`
 				},
 			},
@@ -123,7 +131,7 @@ func (a *app) handleFileSystems(filesystems []jujustorage.KubernetesFilesystemPa
 			ReadOnly:     aws.Bool(readOnly),
 		})
 	}
-	return vols, mounts
+	return vols, mounts, nil
 }
 
 func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.RegisterTaskDefinitionInput, error) {
@@ -144,8 +152,10 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 		return containers[i].Name < containers[j].Name
 	})
 
-	volumes, volumeMounts := a.handleFileSystems(config.Filesystems)
-
+	volumes, volumeMounts, err := a.handleFileSystems(config.Filesystems)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
 	input := &ecs.RegisterTaskDefinitionInput{
 		Family:      aws.String(a.name),
 		TaskRoleArn: aws.String(""),
@@ -296,9 +306,13 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 			Name:  aws.String(v.Name),
 			Image: aws.String(v.Image.RegistryPath),
 			DependsOn: []*ecs.ContainerDependency{
+				// {
+				// 	ContainerName: aws.String("charm"),
+				// 	Condition:     aws.String("START"),
+				// },
 				{
-					ContainerName: aws.String("charm"),
-					Condition:     aws.String("START"),
+					ContainerName: aws.String("charm-init"),
+					Condition:     aws.String("COMPLETE"),
 				},
 			},
 			Cpu:        aws.Int64(10),
@@ -326,6 +340,10 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 				},
 			),
 		}
+		charmContainerDefinition.DependsOn = append(charmContainerDefinition.DependsOn, &ecs.ContainerDependency{
+			ContainerName: container.Name,
+			Condition:     aws.String("START"),
+		})
 		volume := &ecs.Volume{
 			Name: aws.String(fmt.Sprintf("charm-data-container-%s", v.Name)),
 			DockerVolumeConfiguration: &ecs.DockerVolumeConfiguration{
@@ -376,8 +394,74 @@ func (a *app) State() (caas.ApplicationState, error) {
 	return caas.ApplicationState{}, nil
 }
 
+// !!!
+func computeStatus(ctx context.Context, t *ecs.Task) (statusMessage string, jujuStatus status.Status, since time.Time) {
+	if t.StoppedAt != nil || t.StoppingAt != nil {
+		since = aws.TimeValue(t.StoppedAt)
+		if t.StoppedAt == nil {
+			since = aws.TimeValue(t.StoppingAt)
+		}
+		return "", status.Terminated, since
+	}
+	jujuStatus = status.Unknown
+	healthStatus := aws.StringValue(t.HealthStatus)
+	switch healthStatus {
+	case "UNKNOWN":
+	case "RUNNING":
+		jujuStatus = status.Running
+	case "UNHEALTHY":
+		jujuStatus = status.Error
+	case "PENDING":
+		jujuStatus = status.Allocating
+	}
+	statusMessage = aws.StringValue(t.StoppedReason)
+	// since = now ??
+	return statusMessage, jujuStatus, since
+}
+
 // Units of the application fetched from kubernetes by matching pod labels.
-func (a *app) Units() ([]caas.Unit, error) {
+func (a *app) Units() (units []caas.Unit, err error) {
+	ctx := context.Background()
+
+	result, err := a.client.ListTasks(&ecs.ListTasksInput{
+		Family:      aws.String(a.name), // TODO: model prefixing????
+		Cluster:     aws.String(a.clusterName),
+		ServiceName: aws.String(a.name), // TODO: model prefixing????
+	})
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	tasks, err := a.client.DescribeTasks(&ecs.DescribeTasksInput{
+		Cluster: aws.String(a.clusterName),
+		Tasks:   result.TaskArns,
+	})
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	if len(tasks.Failures) > 0 {
+		failures := ""
+		for _, failure := range tasks.Failures {
+			failures = " | " + failure.String()
+		}
+		logger.Warningf("a.client.DescribeTasks(%#v), tasks.Failures -> %q", result.TaskArns, failures)
+	}
+	for _, t := range tasks.Tasks {
+		logger.Warningf("Units() task -> %s", pretty.Sprint(t))
+		statusMessage, unitStatus, since := computeStatus(ctx, t)
+		unitInfo := caas.Unit{
+			Id:       aws.StringValue(t.TaskArn),
+			Address:  "",
+			Ports:    nil,
+			Dying:    t.StoppedAt != nil || t.StoppingAt != nil,
+			Stateful: false, // ??????????
+			Status: status.StatusInfo{
+				Status:  unitStatus,
+				Message: statusMessage,
+				Since:   &since,
+			},
+		}
+		units = append(units, unitInfo)
+	}
 	return nil, nil
 }
 
@@ -439,7 +523,7 @@ func (a *app) ensureECSService(taskDefinitionID string) (err error) {
 	input := &ecs.CreateServiceInput{
 		Cluster:        aws.String(a.clusterName),
 		DesiredCount:   aws.Int64(1),
-		ServiceName:    aws.String(a.name),
+		ServiceName:    aws.String(a.name), // TODO: model prefixing????
 		TaskDefinition: aws.String(taskDefinitionID),
 	}
 

@@ -86,8 +86,9 @@ func NewStateCAASApplicationProvisionerAPI(ctx facade.Context) (*APIGroup, error
 		return nil, errors.Annotate(err, "getting caas client")
 	}
 	registry := stateenvirons.NewStorageProviderRegistry(broker)
+	tys, err := registry.StorageProviderTypes()
+	logger.Criticalf("NewStateCAASApplicationProvisionerAPI registry.StorageProviderTypes() %#v, %#v", tys, err)
 	pm := poolmanager.New(state.NewStateSettings(st), registry)
-
 	commonCharmsAPI, err := charmscommon.NewCharmsAPI(st, authorizer)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -479,7 +480,7 @@ func CharmStorageParams(
 	result := &params.KubernetesFilesystemParams{
 		StorageName: "charm",
 		Size:        size,
-		Provider:    string(k8sconstants.StorageProviderType),
+		Provider:    "ecs", // string(k8sconstants.StorageProviderType),
 		Tags:        tags,
 		Attributes:  make(map[string]interface{}),
 	}
@@ -515,6 +516,7 @@ func CharmStorageParams(
 
 func poolStorageProvider(poolManager poolmanager.PoolManager, registry storage.ProviderRegistry, poolName string) (storage.ProviderType, map[string]interface{}, error) {
 	pool, err := poolManager.Get(poolName)
+	logger.Warningf("poolStorageProvider poolManager.Get(%q), pool -> %#v, err -> %#v", poolName, pool, err)
 	if errors.IsNotFound(err) {
 		// If there's no pool called poolName, maybe a provider type
 		// has been specified directly.
@@ -640,7 +642,9 @@ func filesystemParams(
 	if cons.Pool == "" && storageClassName == "" {
 		return nil, errors.Errorf("storage pool for %q must be specified since there's no model default storage class", storageName)
 	}
+	logger.Criticalf("filesystemParams storageClassName -> %q, cons -> %#v, filesystemTags -> %#v", storageClassName, cons, filesystemTags)
 	fsParams, err := CharmStorageParams(controllerUUID, storageClassName, modelConfig, cons.Pool, poolManager, registry)
+	logger.Criticalf("filesystemParams fsParams 1 -> %#v", fsParams)
 	if err != nil {
 		return nil, errors.Maskf(err, "getting filesystem storage parameters")
 	}
@@ -648,6 +652,7 @@ func filesystemParams(
 	fsParams.Size = cons.Size
 	fsParams.StorageName = storageName
 	fsParams.Tags = filesystemTags
+	logger.Criticalf("filesystemParams fsParams 2 -> %#v", fsParams)
 	return fsParams, nil
 }
 
