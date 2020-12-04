@@ -258,7 +258,7 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 		DependsOn: []*ecs.ContainerDependency{
 			{
 				ContainerName: aws.String("charm-init"),
-				Condition:     aws.String("COMPLETE"),
+				Condition:     aws.String("SUCCESS"),
 			},
 		},
 		Essential:  aws.Bool(true),
@@ -312,7 +312,7 @@ func (a *app) applicationTaskDefinition(config caas.ApplicationConfig) (*ecs.Reg
 				// },
 				{
 					ContainerName: aws.String("charm-init"),
-					Condition:     aws.String("COMPLETE"),
+					Condition:     aws.String("SUCCESS"),
 				},
 			},
 			Cpu:        aws.Int64(10),
@@ -424,7 +424,7 @@ func (a *app) Units() (units []caas.Unit, err error) {
 	ctx := context.Background()
 
 	result, err := a.client.ListTasks(&ecs.ListTasksInput{
-		Family:      aws.String(a.name), // TODO: model prefixing????
+		// Family:      aws.String(a.name), // TODO: model prefixing????
 		Cluster:     aws.String(a.clusterName),
 		ServiceName: aws.String(a.name), // TODO: model prefixing????
 	})
@@ -449,20 +449,42 @@ func (a *app) Units() (units []caas.Unit, err error) {
 		logger.Warningf("Units() task -> %s", pretty.Sprint(t))
 		statusMessage, unitStatus, since := computeStatus(ctx, t)
 		unitInfo := caas.Unit{
-			Id:       aws.StringValue(t.TaskArn),
+			// Id:       aws.StringValue(t.TaskArn),
+			Id:       "cockroachdb-0", // !!!
 			Address:  "",
 			Ports:    nil,
 			Dying:    t.StoppedAt != nil || t.StoppingAt != nil,
-			Stateful: false, // ??????????
+			Stateful: true, // ??????????
 			Status: status.StatusInfo{
 				Status:  unitStatus,
 				Message: statusMessage,
 				Since:   &since,
 			},
+			FilesystemInfo: []caas.FilesystemInfo{
+				{
+					Size:         1,
+					FilesystemId: "cockroachdb-0",
+					MountPoint:   "/var/lib/juju/storage/database/0",
+					ReadOnly:     false,
+					Status: status.StatusInfo{
+						Status: status.Attached,
+						Since:  &since,
+					},
+					Volume: caas.VolumeInfo{
+						VolumeId:   "cockroachdb-0",
+						Size:       1,
+						Persistent: false,
+						Status: status.StatusInfo{
+							Status: status.Attached,
+							Since:  &since,
+						},
+					},
+				},
+			},
 		}
 		units = append(units, unitInfo)
 	}
-	return nil, nil
+	return units, nil
 }
 
 // UpdatePorts updates port mappings on the specified service.
@@ -501,18 +523,18 @@ func (a *app) registerTaskDefinition(config caas.ApplicationConfig) (*ecs.Regist
 		if aerr, ok := err.(awserr.Error); ok {
 			switch aerr.Code() {
 			case ecs.ErrCodeServerException:
-				fmt.Println(ecs.ErrCodeServerException, aerr.Error())
+				logger.Errorf(ecs.ErrCodeServerException + " -> " + aerr.Error())
 			case ecs.ErrCodeClientException:
-				fmt.Println(ecs.ErrCodeClientException, aerr.Error())
+				logger.Errorf(ecs.ErrCodeClientException + " -> " + aerr.Error())
 			case ecs.ErrCodeInvalidParameterException:
-				fmt.Println(ecs.ErrCodeInvalidParameterException, aerr.Error())
+				logger.Errorf(ecs.ErrCodeInvalidParameterException + " -> " + aerr.Error())
 			default:
-				fmt.Println(aerr.Error())
+				logger.Errorf(aerr.Error())
 			}
 		} else {
 			// Print the error, cast err to awserr.Error to get the Code and
 			// Message from an error.
-			fmt.Println(err.Error())
+			logger.Errorf(err.Error())
 		}
 		return nil, errors.Trace(err)
 	}
@@ -520,42 +542,60 @@ func (a *app) registerTaskDefinition(config caas.ApplicationConfig) (*ecs.Regist
 }
 
 func (a *app) ensureECSService(taskDefinitionID string) (err error) {
-	input := &ecs.CreateServiceInput{
-		Cluster:        aws.String(a.clusterName),
-		DesiredCount:   aws.Int64(1),
-		ServiceName:    aws.String(a.name), // TODO: model prefixing????
-		TaskDefinition: aws.String(taskDefinitionID),
+	handleErr := func(err error) error {
+		if err != nil {
+			if aerr, ok := err.(awserr.Error); ok {
+				switch aerr.Code() {
+				case ecs.ErrCodeServerException:
+					logger.Errorf(ecs.ErrCodeServerException + " -> " + aerr.Error())
+				case ecs.ErrCodeClientException:
+					logger.Errorf(ecs.ErrCodeClientException + " -> " + aerr.Error())
+				case ecs.ErrCodeInvalidParameterException:
+					logger.Errorf(ecs.ErrCodeInvalidParameterException + " -> " + aerr.Error())
+				case ecs.ErrCodeClusterNotFoundException:
+					logger.Errorf(ecs.ErrCodeClusterNotFoundException + " -> " + aerr.Error())
+				case ecs.ErrCodeUnsupportedFeatureException:
+					logger.Errorf(ecs.ErrCodeUnsupportedFeatureException + " -> " + aerr.Error())
+				case ecs.ErrCodePlatformUnknownException:
+					logger.Errorf(ecs.ErrCodePlatformUnknownException + " -> " + aerr.Error())
+				case ecs.ErrCodePlatformTaskDefinitionIncompatibilityException:
+					logger.Errorf(ecs.ErrCodePlatformTaskDefinitionIncompatibilityException + " -> " + aerr.Error())
+				case ecs.ErrCodeAccessDeniedException:
+					logger.Errorf(ecs.ErrCodeAccessDeniedException + " -> " + aerr.Error())
+				case ecs.ErrCodeServiceNotFoundException, ecs.ErrCodeServiceNotActiveException:
+					logger.Errorf(aerr.Code() + " -> " + aerr.Error())
+					return errors.NewNotFound(aerr, aerr.Error())
+				default:
+					logger.Errorf(aerr.Error())
+				}
+			} else {
+				// Print the error, cast err to awserr.Error to get the Code and
+				// Message from an error.
+				logger.Errorf(err.Error())
+			}
+		}
+		return err
 	}
 
-	result, err := a.client.CreateService(input)
-	logger.Criticalf("app.ensureECSService %q err -> %#v result -> %s", taskDefinitionID, err, pretty.Sprint(result))
-	if err != nil {
-		if aerr, ok := err.(awserr.Error); ok {
-			switch aerr.Code() {
-			case ecs.ErrCodeServerException:
-				fmt.Println(ecs.ErrCodeServerException, aerr.Error())
-			case ecs.ErrCodeClientException:
-				fmt.Println(ecs.ErrCodeClientException, aerr.Error())
-			case ecs.ErrCodeInvalidParameterException:
-				fmt.Println(ecs.ErrCodeInvalidParameterException, aerr.Error())
-			case ecs.ErrCodeClusterNotFoundException:
-				fmt.Println(ecs.ErrCodeClusterNotFoundException, aerr.Error())
-			case ecs.ErrCodeUnsupportedFeatureException:
-				fmt.Println(ecs.ErrCodeUnsupportedFeatureException, aerr.Error())
-			case ecs.ErrCodePlatformUnknownException:
-				fmt.Println(ecs.ErrCodePlatformUnknownException, aerr.Error())
-			case ecs.ErrCodePlatformTaskDefinitionIncompatibilityException:
-				fmt.Println(ecs.ErrCodePlatformTaskDefinitionIncompatibilityException, aerr.Error())
-			case ecs.ErrCodeAccessDeniedException:
-				fmt.Println(ecs.ErrCodeAccessDeniedException, aerr.Error())
-			default:
-				fmt.Println(aerr.Error())
-			}
-		} else {
-			// Print the error, cast err to awserr.Error to get the Code and
-			// Message from an error.
-			fmt.Println(err.Error())
+	updateInput := &ecs.UpdateServiceInput{
+		Cluster:        aws.String(a.clusterName),
+		DesiredCount:   aws.Int64(1),
+		Service:        aws.String(a.name), // TODO: model prefixing????
+		TaskDefinition: aws.String(taskDefinitionID),
+	}
+	result, err := a.client.UpdateService(updateInput)
+	logger.Criticalf("app.ensureECSService UpdateService %q err -> %#v result -> %s", taskDefinitionID, err, pretty.Sprint(result))
+	err = handleErr(err)
+	if errors.IsNotFound(err) {
+		createInput := &ecs.CreateServiceInput{
+			Cluster:        aws.String(a.clusterName),
+			DesiredCount:   aws.Int64(1),
+			ServiceName:    aws.String(a.name), // TODO: model prefixing????
+			TaskDefinition: aws.String(taskDefinitionID),
 		}
+		result, err := a.client.CreateService(createInput)
+		logger.Criticalf("app.ensureECSService CreateService %q err -> %#v result -> %s", taskDefinitionID, err, pretty.Sprint(result))
+		err = handleErr(err)
 	}
 	return errors.Trace(err)
 }

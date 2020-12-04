@@ -92,7 +92,7 @@ func (p environProvider) ConfigDefaults() schema.Defaults {
 }
 
 func validateConfig(cfg, old *config.Config) (*brokerConfig, error) {
-	logger.Criticalf("validateConfig cfg -> %#v, old -> %#v", cfg, old)
+	// logger.Criticalf("validateConfig cfg -> %#v, old -> %#v", cfg, old)
 	// Check for valid changes for the base config values.
 	if err := config.Validate(cfg, old); err != nil {
 		return nil, errors.Trace(err)
