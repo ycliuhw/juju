@@ -454,7 +454,7 @@ func (a *app) Units() (units []caas.Unit, err error) {
 			Address:  "",
 			Ports:    nil,
 			Dying:    t.StoppedAt != nil || t.StoppingAt != nil,
-			Stateful: true, // ??????????
+			Stateful: a.deploymentType == caas.DeploymentStateful, // ??????????
 			Status: status.StatusInfo{
 				Status:  unitStatus,
 				Message: statusMessage,
@@ -497,12 +497,49 @@ func (a *app) UpdateService(param caas.ServiceParam) error {
 	return nil
 }
 
+func errorOrFailures(err error, failures []*ecs.Failure) error {
+	if err != nil {
+		return errors.Trace(err)
+	}
+	if len(failures) == 0 {
+		return nil
+	}
+	var errStrs []string
+	for _, failure := range failures {
+		errStrs = append(errStrs, failure.String())
+	}
+	return errors.New(strings.Join(errStrs, ":"))
+}
+
 // Watch returns a watcher which notifies when there
 // are changes to the application of the specified application.
 func (a *app) Watch() (watcher.NotifyWatcher, error) {
-	ch := make(chan struct{}, 1)
-	ch <- struct{}{}
-	return watchertest.NewMockNotifyWatcher(ch), nil
+	var lastEventID string
+	hasNewEvents := func() (bool, error) {
+		result, err := a.client.DescribeServices(&ecs.DescribeServicesInput{
+			Cluster:  aws.String(a.clusterName),
+			Services: []*string{aws.String(a.name)}, // TODO: model prefixing????
+		})
+		err = errorOrFailures(err, result.Failures)
+		if err != nil {
+			return false, errors.Trace(err)
+		}
+		if len(result.Services) == 0 {
+			return false, nil
+		}
+		svc := result.Services[0]
+		if len(svc.Events) == 0 {
+			return false, nil
+		}
+		lastestEventID := aws.StringValue(svc.Events[0].Id)
+		logger.Warningf("lastestEvent -> %s", svc.Events[0])
+		if lastEventID != lastestEventID {
+			lastEventID = lastestEventID
+			return true, nil
+		}
+		return false, nil
+	}
+	return newNotifyWatcher(a.name, a.clock, hasNewEvents)
 }
 
 func (a *app) WatchReplicas() (watcher.NotifyWatcher, error) {

@@ -960,6 +960,7 @@ func (a *API) updateUnitsFromCloud(app Application, unitUpdates []params.Applica
 		unit, ok := unitByProviderID[unitParams.ProviderId]
 		if !ok {
 			logger.Warningf("ignoring non-existent unit with provider id %q", unitParams.ProviderId)
+			logger.Warningf("ignoring non-existent unit with provider id %q, unitByProviderID -> %#v", unitParams.ProviderId, unitByProviderID)
 			continue
 		}
 
