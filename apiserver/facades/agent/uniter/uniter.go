@@ -2623,6 +2623,10 @@ func (u *UniterAPI) goalStateUnits(app *state.Application, principalName string)
 	return unitsGoalState, nil
 }
 
+func (u *UniterAPI) WatchCloudEvents(args params.Entities) (params.StringsWatchResults, error) {
+	return nil, nil
+}
+
 // WatchConfigSettingsHash returns a StringsWatcher that yields a hash
 // of the config values every time the config changes. The uniter can
 // save this hash and use it to decide whether the config-changed hook

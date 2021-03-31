@@ -92,6 +92,12 @@ func constructCommandCreator(name string, newCmd functionCmdCreator) creator {
 	}
 }
 
+var cloudEventCommands = map[string]creator{
+	"cloud-event-get" + cmdSuffix:        NewCloudEventGetCommand,
+	"register-cloud-event" + cmdSuffix:   NewRegisterCloudEventCommand,
+	"unregister-cloud-event" + cmdSuffix: NewUnregisterCloudEventCommand,
+}
+
 var storageCommands = map[string]creator{
 	"storage-add" + cmdSuffix:  NewStorageAddCommand,
 	"storage-get" + cmdSuffix:  NewStorageGetCommand,
@@ -113,6 +119,8 @@ func allEnabledCommands() map[string]creator {
 	}
 	add(baseCommands)
 	add(storageCommands)
+	add(cloudEventCommands)
+	add(leaderCommands)
 	add(leaderCommands)
 	add(registeredCommands)
 	return all

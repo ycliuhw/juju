@@ -42,6 +42,7 @@ type HookContext interface {
 	ContextLeadership
 	ContextMetrics
 	ContextStorage
+	ContextCloudEvent
 	ContextComponents
 	ContextRelations
 	ContextVersion
@@ -255,6 +256,19 @@ type ContextStorage interface {
 
 	// AddUnitStorage saves storage constraints in the context.
 	AddUnitStorage(map[string]params.StorageConstraints) error
+}
+
+// ContextCloudEvent is the part of a hook context related to cloud events.
+type ContextCloudEvent interface {
+	// RegisterCloudEvent registers the cloud resource to watch.
+	RegisterCloudEvent(string, string) error
+	// UnregisterCloudEvent removes the watched cloud resource previously registered.
+	UnregisterCloudEvent(string, string) error
+	// GetCloudEvent fetches the latest cloud event of the registered resource.
+	GetCloudEvent(string, string) (
+		string, // TODO: params.CloudEvent: json string then load as python dict in ops?
+		error,
+	)
 }
 
 // ContextComponents exposes modular Juju components as they relate to

@@ -582,6 +582,26 @@ func (u *Unit) WatchTrustConfigSettingsHash() (watcher.StringsWatcher, error) {
 	return getHashWatcher(u, "WatchTrustConfigSettingsHash")
 }
 
+func (u *Unit) WatchCloudEvents() (watcher.StringsWatcher, error) {
+	var results params.StringsWatchResults
+	args := params.Entities{
+		Entities: []params.Entity{{Tag: u.tag.String()}},
+	}
+	err := u.st.facade.FacadeCall("WatchCloudEvents", args, &results)
+	if err != nil {
+		return nil, err
+	}
+	if len(results.Results) != 1 {
+		return nil, errors.Errorf("expected 1 result, got %d", len(results.Results))
+	}
+	result := results.Results[0]
+	if result.Error != nil {
+		return nil, result.Error
+	}
+	w := apiwatcher.NewStringsWatcher(u.st.facade.RawAPICaller(), result)
+	return w, nil
+}
+
 func getHashWatcher(u *Unit, methodName string) (watcher.StringsWatcher, error) {
 	var results params.StringsWatchResults
 	args := params.Entities{

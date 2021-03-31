@@ -11,7 +11,7 @@ import (
 	jujucmd "github.com/juju/juju/cmd"
 )
 
-// CredentialGetCommand implements the leader-get command.
+// CredentialGetCommand implements the credential-get command.
 type CredentialGetCommand struct {
 	cmd.CommandBase
 	ctx Context
