@@ -806,7 +806,8 @@ func (w *RemoteStateWatcher) applicationChanged() error {
 	// CAAS embedded charms will wait for the provider to restart/recreate
 	// the unit before performing an upgrade.
 	if w.embedded && ver != w.enforcedCharmModifiedVersion {
-		return nil
+		w.logger.Warningf("applicationChanged ver %v, w.enforcedCharmModifiedVersion  %v", ver, w.enforcedCharmModifiedVersion)
+		// return nil
 	}
 	w.mu.Lock()
 	w.current.CharmURL = url
