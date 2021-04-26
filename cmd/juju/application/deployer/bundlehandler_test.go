@@ -9,14 +9,14 @@ import (
 	"strings"
 
 	"github.com/golang/mock/gomock"
-	charm "github.com/juju/charm/v8"
+	"github.com/juju/charm/v8"
 	charmresource "github.com/juju/charm/v8/resource"
 	"github.com/juju/cmd"
 	"github.com/juju/errors"
 	"github.com/juju/testing"
 	jc "github.com/juju/testing/checkers"
 	gc "gopkg.in/check.v1"
-	macaroon "gopkg.in/macaroon.v2"
+	"gopkg.in/macaroon.v2"
 
 	"github.com/juju/juju/api/application"
 	"github.com/juju/juju/api/base"
@@ -363,17 +363,17 @@ func (s *BundleDeployRepositorySuite) TestDeployKubernetesBundleSuccessWithCharm
 	_, err = bundleDeploy(bundleData, s.bundleDeploySpec())
 	c.Assert(err, jc.ErrorIsNil)
 	c.Assert(s.deployArgs, gc.HasLen, 2)
-	s.assertDeployArgs(c, gitlabCurl.String(), "gitlab", "kubernetes")
-	s.assertDeployArgs(c, mariadbCurl.String(), "mariadb", "kubernetes")
+	s.assertDeployArgs(c, gitlabCurl.String(), "gitlab", "focal")
+	s.assertDeployArgs(c, mariadbCurl.String(), "mariadb", "focal")
 
 	c.Check(s.output.String(), gc.Equals, ""+
-		"Located charm \"gitlab-k8s\" in charm-hub\n"+
-		"Located charm \"mariadb-k8s\" in charm-hub\n"+
+		"Located charm \"gitlab-k8s\" in charm-hub, channel new/edge\n"+
+		"Located charm \"mariadb-k8s\" in charm-hub, channel old/stable\n"+
 		"Executing changes:\n"+
-		"- upload charm gitlab-k8s from charm-hub for series kubernetes\n"+
-		"- deploy application gitlab from charm-hub with 1 unit on kubernetes using gitlab-k8s\n"+
-		"- upload charm mariadb-k8s from charm-hub for series kubernetes\n"+
-		"- deploy application mariadb from charm-hub with 2 units on kubernetes using mariadb-k8s\n"+
+		"- upload charm gitlab-k8s from charm-hub for series kubernetes from channel new/edge\n"+
+		"- deploy application gitlab from charm-hub with 1 unit on kubernetes with new/edge using gitlab-k8s\n"+
+		"- upload charm mariadb-k8s from charm-hub for series kubernetes from channel old/stable\n"+
+		"- deploy application mariadb from charm-hub with 2 units on kubernetes with old/stable using mariadb-k8s\n"+
 		"- add relation gitlab:mysql - mariadb:server\n"+
 		"Deploy of bundle completed.\n")
 }
@@ -384,9 +384,11 @@ applications:
   mariadb:
     charm: mariadb-k8s
     scale: 2
+    channel: old/stable
   gitlab:
     charm: gitlab-k8s
     scale: 1
+    channel: new/edge
 relations:
   - - gitlab:mysql
     - mariadb:server
@@ -1000,6 +1002,10 @@ func (s *BundleDeployRepositorySuite) setupMetadataV2CharmUnits(charmUnits []cha
 					},
 				},
 			},
+			Manifest: &charm.Manifest{Bases: []charm.Base{{
+				Name:    "ubuntu",
+				Channel: charm.Channel{Track: "20.04"},
+			}}},
 		}
 		s.expectCharmInfo(chUnit.curl.String(), charmInfo)
 		s.expectDeploy()

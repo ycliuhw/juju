@@ -15,13 +15,10 @@ const (
 	FormatV2      MetadataFormat = iota
 )
 
-type CharmManifest interface {
-	Manifest() *charm.Manifest
-}
-
-// Given a charm, what format is it in?
-func Format(ch CharmManifest) MetadataFormat {
-	if ch.Manifest() == nil || len(ch.Manifest().Bases) == 0 {
+// Format returns the metadata format for a given charm.
+func Format(ch charm.CharmMeta) MetadataFormat {
+	m := ch.Manifest()
+	if m == nil || len(m.Bases) == 0 || len(ch.Meta().Series) > 0 {
 		return FormatV1
 	}
 	return FormatV2
