@@ -226,7 +226,6 @@ jobs:
     # However we just need to install the `wait-for` binary ourselves,
     # and then Juju 2.8 can use it (amazing!)
     - name: Add `wait-for` plugin
-      if: env.JUJU_OLDV == '2.8/stable'
       shell: bash
       run: |
         # Download a stable version of Juju
