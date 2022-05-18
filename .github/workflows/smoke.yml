@@ -64,7 +64,7 @@ jobs:
     if: github.event.pull_request.draft == false
     strategy:
       matrix:
-        snap_version: ["latest/stable", "latest/beta"]
+        snap_version: ["2.9/stable"]
         model_type: ["localhost", "microk8s"]
     env:
       CHARM_localhost: apache2
