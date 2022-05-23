@@ -213,7 +213,8 @@ jobs:
         
         while true
         do
-          sg microk8s 'juju bootstrap microk8s c --config caas-image-repo='{"repository": "${DOCKER_REGISTRY}/test-repo", "serveraddress": "https://${DOCKER_REGISTRY}/"}' --config juju-db-snap-channel="${JUJU_DB_TAG}/stable" --config features="[developer-mode]"' || true
+          sg microk8s juju bootstrap microk8s c --config caas-image-repo='{"repository": "${DOCKER_REGISTRY}/test-repo", "serveraddress": "https://${DOCKER_REGISTRY}/"}' --config juju-db-snap-channel="${JUJU_DB_TAG}/stable" --config features="[developer-mode]" || true
+          EOF
           sleep 30
         done
         
