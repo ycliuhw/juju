@@ -218,7 +218,7 @@ jobs:
               --config caas-image-repo='{"repository": "${DOCKER_REGISTRY}/test-repo", "serveraddress": "https://${DOCKER_REGISTRY}/"}' \
               --config juju-db-snap-channel="${JUJU_DB_TAG}/stable" \
               --config features="[developer-mode]" || true
-          EOF
+        EOF
           sleep 30
         done
         
