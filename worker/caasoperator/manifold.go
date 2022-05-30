@@ -21,7 +21,6 @@ import (
 
 	"github.com/juju/juju/agent"
 	apileadership "github.com/juju/juju/api/agent/leadership"
-	"github.com/juju/juju/api/agent/secretsmanager"
 	apiuniter "github.com/juju/juju/api/agent/uniter"
 	"github.com/juju/juju/api/base"
 	"github.com/juju/juju/caas"
@@ -33,7 +32,6 @@ import (
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/worker/fortress"
 	"github.com/juju/juju/worker/leadership"
-	"github.com/juju/juju/worker/secretrotate"
 	"github.com/juju/juju/worker/uniter"
 	"github.com/juju/juju/worker/uniter/charm"
 	"github.com/juju/juju/worker/uniter/operation"
@@ -178,6 +176,12 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			newUniterFunc := func(unitTag names.UnitTag) *apiuniter.State {
 				return apiuniter.NewState(apiCaller, unitTag)
 			}
+			newResourcesFacadeFunc := func(unitTag names.UnitTag) (*apiuniter.ResourcesFacadeClient, error) {
+				return apiuniter.NewResourcesFacadeClient(apiCaller, unitTag)
+			}
+			newPayloadFacadeFunc := func() *apiuniter.PayloadFacadeClient {
+				return apiuniter.NewPayloadFacadeClient(apiCaller)
+			}
 			leadershipTrackerFunc := func(unitTag names.UnitTag) coreleadership.TrackerWorker {
 				claimer := apileadership.NewClient(apiCaller)
 				return leadership.NewTracker(unitTag, claimer, clock, config.LeadershipGuarantee)
@@ -192,18 +196,6 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 				containerStartWatcherClient = func(c Client) ContainerStartWatcher {
 					return c
 				}
-			}
-
-			secretRotateWatcherFunc := func(unitTag names.UnitTag, rotateSecrets chan []string) (worker.Worker, error) {
-				client := secretsmanager.NewClient(apiCaller)
-				appName, _ := names.UnitApplication(unitTag.Id())
-				return secretrotate.New(secretrotate.Config{
-					SecretManagerFacade: client,
-					Clock:               clock,
-					Logger:              config.Logger.Child("secretsrotate"),
-					SecretOwner:         names.NewApplicationTag(appName),
-					RotateSecrets:       rotateSecrets,
-				})
 			}
 
 			wCfg := Config{
@@ -226,6 +218,8 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 				RunListenerSocketFunc: runListenerSocketFunc,
 				LeadershipTrackerFunc: leadershipTrackerFunc,
 				UniterFacadeFunc:      newUniterFunc,
+				ResourcesFacadeFunc:   newResourcesFacadeFunc,
+				PayloadFacadeFunc:     newPayloadFacadeFunc,
 				ExecClientGetter: func() (exec.Executor, error) {
 					return config.NewExecClient(os.Getenv(caasconstants.OperatorNamespaceEnvName))
 				},
@@ -241,18 +235,17 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			}
 			wCfg.OperatorInfo = *operatorInfo
 			wCfg.UniterParams = &uniter.UniterParams{
-				NewOperationExecutor:    operation.NewExecutor,
-				NewDeployer:             charm.NewDeployer,
-				NewProcessRunner:        runner.NewRunner,
-				DataDir:                 agentConfig.DataDir(),
-				Clock:                   clock,
-				MachineLock:             config.MachineLock,
-				CharmDirGuard:           charmDirGuard,
-				UpdateStatusSignal:      uniter.NewUpdateStatusTimer(),
-				HookRetryStrategy:       hookRetryStrategy,
-				TranslateResolverErr:    config.TranslateResolverErr,
-				SecretRotateWatcherFunc: secretRotateWatcherFunc,
-				Logger:                  wCfg.Logger.Child("uniter"),
+				NewOperationExecutor: operation.NewExecutor,
+				NewDeployer:          charm.NewDeployer,
+				NewProcessRunner:     runner.NewRunner,
+				DataDir:              agentConfig.DataDir(),
+				Clock:                clock,
+				MachineLock:          config.MachineLock,
+				CharmDirGuard:        charmDirGuard,
+				UpdateStatusSignal:   uniter.NewUpdateStatusTimer(),
+				HookRetryStrategy:    hookRetryStrategy,
+				TranslateResolverErr: config.TranslateResolverErr,
+				Logger:               wCfg.Logger.Child("uniter"),
 			}
 			wCfg.UniterParams.SocketConfig, err = socketConfig(operatorInfo)
 			if err != nil {

@@ -591,6 +591,7 @@ func (e *Environ) ConstraintsValidator(ctx context.ProviderCallContext) (constra
 	validator := constraints.NewValidator()
 	validator.RegisterConflicts(
 		[]string{constraints.InstanceType},
+		// TODO: move to a dynamic conflict for arch when openstack supports defining arch in flavors
 		[]string{constraints.Mem, constraints.Cores})
 	// NOTE: RootDiskSource and RootDisk constraints are validated in PrecheckInstance.
 	validator.RegisterUnsupported(unsupportedConstraints)
@@ -2071,13 +2072,15 @@ func rulesToRuleInfo(groupId string, rules firewall.IngressRules) []neutron.Rule
 		ruleInfo := neutron.RuleInfoV2{
 			Direction:     "ingress",
 			ParentGroupId: groupId,
-			PortRangeMin:  r.PortRange.FromPort,
-			PortRangeMax:  r.PortRange.ToPort,
 			IPProtocol:    r.PortRange.Protocol,
+		}
+		if ruleInfo.IPProtocol != "icmp" {
+			ruleInfo.PortRangeMin = r.PortRange.FromPort
+			ruleInfo.PortRangeMax = r.PortRange.ToPort
 		}
 		sourceCIDRs := r.SourceCIDRs.Values()
 		if len(sourceCIDRs) == 0 {
-			sourceCIDRs = append(sourceCIDRs, firewall.AllNetworksIPV4CIDR)
+			sourceCIDRs = append(sourceCIDRs, firewall.AllNetworksIPV4CIDR, firewall.AllNetworksIPV6CIDR)
 		}
 		for _, sr := range sourceCIDRs {
 			addrType, _ := network.CIDRAddressType(sr)

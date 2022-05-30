@@ -27,12 +27,12 @@ import (
 	"github.com/juju/juju/apiserver/facades/agent/metricsadder"
 	"github.com/juju/juju/apiserver/facades/agent/migrationflag"
 	"github.com/juju/juju/apiserver/facades/agent/migrationminion"
+	"github.com/juju/juju/apiserver/facades/agent/payloadshookcontext"
 	"github.com/juju/juju/apiserver/facades/agent/provisioner"
 	"github.com/juju/juju/apiserver/facades/agent/proxyupdater"
 	"github.com/juju/juju/apiserver/facades/agent/reboot"
 	"github.com/juju/juju/apiserver/facades/agent/resourceshookcontext"
 	"github.com/juju/juju/apiserver/facades/agent/retrystrategy"
-	"github.com/juju/juju/apiserver/facades/agent/secretsmanager"
 	"github.com/juju/juju/apiserver/facades/agent/storageprovisioner"
 	"github.com/juju/juju/apiserver/facades/agent/unitassigner"
 	"github.com/juju/juju/apiserver/facades/agent/uniter"
@@ -66,7 +66,6 @@ import (
 	"github.com/juju/juju/apiserver/facades/client/modelmanager" // ModelUser Write
 	"github.com/juju/juju/apiserver/facades/client/payloads"
 	"github.com/juju/juju/apiserver/facades/client/resources"
-	"github.com/juju/juju/apiserver/facades/client/secrets"
 	"github.com/juju/juju/apiserver/facades/client/spaces"    // ModelUser Write
 	"github.com/juju/juju/apiserver/facades/client/sshclient" // ModelUser Write
 	"github.com/juju/juju/apiserver/facades/client/storage"
@@ -186,6 +185,7 @@ func AllFacades() *facade.Registry {
 	modelmanager.Register(registry)
 	modelupgrader.Register(registry)
 	payloads.Register(registry)
+	payloadshookcontext.Register(registry)
 	provisioner.Register(registry)
 	proxyupdater.Register(registry)
 	raftlease.Register(registry)
@@ -196,8 +196,6 @@ func AllFacades() *facade.Registry {
 	resumer.Register(registry)
 	retrystrategy.Register(registry)
 	singular.Register(registry)
-	secrets.Register(registry)
-	secretsmanager.Register(registry)
 	sshclient.Register(registry)
 	spaces.Register(registry)
 	statushistory.Register(registry)
@@ -237,7 +235,6 @@ func AllFacades() *facade.Registry {
 	registry.MustRegister("EntityWatcher", 2, newEntitiesWatcher, reflect.TypeOf((*srvEntitiesWatcher)(nil)))
 	registry.MustRegister("MigrationStatusWatcher", 1, newMigrationStatusWatcher, reflect.TypeOf((*srvMigrationStatusWatcher)(nil)))
 	registry.MustRegister("ModelSummaryWatcher", 1, newModelSummaryWatcher, reflect.TypeOf((*SrvModelSummaryWatcher)(nil)))
-	registry.MustRegister("SecretsRotationWatcher", 1, newSecretsRotationWatcher, reflect.TypeOf((*srvSecretRotationWatcher)(nil)))
 
 	return registry
 }

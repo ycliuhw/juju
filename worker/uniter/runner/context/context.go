@@ -19,21 +19,20 @@ import (
 	"github.com/juju/names/v4"
 	"github.com/juju/proxy"
 
-	"github.com/juju/juju/api/agent/secretsmanager"
 	"github.com/juju/juju/api/agent/uniter"
-	"github.com/juju/juju/api/base"
 	"github.com/juju/juju/caas"
 	k8sspecs "github.com/juju/juju/caas/kubernetes/provider/specs"
 	"github.com/juju/juju/core/application"
 	"github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/network"
 	"github.com/juju/juju/core/quota"
-	coresecrets "github.com/juju/juju/core/secrets"
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/juju/sockets"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/version"
 	"github.com/juju/juju/worker/common/charmrunner"
+	"github.com/juju/juju/worker/uniter/runner/context/payloads"
+	"github.com/juju/juju/worker/uniter/runner/context/resources"
 	"github.com/juju/juju/worker/uniter/runner/jujuc"
 )
 
@@ -91,9 +90,9 @@ type Paths interface {
 	// to store metrics recorded during a single hook run.
 	GetMetricsSpoolDir() string
 
-	// ComponentDir returns the filesystem path to the directory
-	// containing all data files for a component.
-	ComponentDir(name string) string
+	// GetResourcesDir returns the filesystem path to the directory
+	// containing resource data files.
+	GetResourcesDir() string
 }
 
 // Clock defines the methods of the full clock.Clock that are needed here.
@@ -104,31 +103,6 @@ type Clock interface {
 }
 
 var ErrIsNotLeader = errors.Errorf("this unit is not the leader")
-
-// ComponentConfig holds all the information related to a hook context
-// needed by components.
-type ComponentConfig struct {
-	// UnitName is the name of the unit.
-	UnitName string
-	// DataDir is the component's data directory.
-	DataDir string
-	// APICaller is the API caller the component may use.
-	APICaller base.APICaller
-}
-
-// ComponentFunc is a factory function for Context components.
-type ComponentFunc func(ComponentConfig) (jujuc.ContextComponent, error)
-
-var registeredComponentFuncs = map[string]ComponentFunc{}
-
-// Add the named component factory func to the registry.
-func RegisterComponentFunc(name string, f ComponentFunc) error {
-	if _, ok := registeredComponentFuncs[name]; ok {
-		return errors.AlreadyExistsf("%s", name)
-	}
-	registeredComponentFuncs[name] = f
-	return nil
-}
 
 // meterStatus describes the unit's meter status.
 type meterStatus struct {
@@ -165,6 +139,8 @@ type HookUnit interface {
 
 // HookContext is the implementation of runner.Context.
 type HookContext struct {
+	*resources.ResourcesHookContext
+	*payloads.PayloadsHookContext
 	unit HookUnit
 
 	// state is the handle to the uniter State so that HookContext can make
@@ -173,9 +149,6 @@ type HookContext struct {
 	// over fully to API calls on State.  This adds that ability, but we're
 	// not fully there yet.
 	state *uniter.State
-
-	// secretFacade allows the context to access the secrets backend.
-	secretFacade *secretsmanager.Client
 
 	// LeadershipContext supplies several hooks.Context methods.
 	LeadershipContext
@@ -304,9 +277,6 @@ type HookContext struct {
 
 	logger loggo.Logger
 
-	componentDir   func(string) string
-	componentFuncs map[string]ComponentFunc
-
 	// slaLevel contains the current SLA level.
 	slaLevel string
 
@@ -335,9 +305,6 @@ type HookContext struct {
 	// seriesUpgradeTarget is the series that the unit's machine is to be
 	// updated to when Juju is issued the `upgrade-series` command.
 	seriesUpgradeTarget string
-
-	// secretURL is the reference to the secret relevant to the hook.
-	secretURL string
 
 	mu sync.Mutex
 }
@@ -451,28 +418,6 @@ func (ctx *HookContext) ensureCharmStateLoaded() error {
 	ctx.cachedCharmState = charmState
 	ctx.charmStateCacheDirty = false
 	return nil
-}
-
-// Component returns the ContextComponent with the supplied name if
-// it was found.
-// Implements jujuc.HookContext.ContextComponents, part of runner.Context.
-func (ctx *HookContext) Component(name string) (jujuc.ContextComponent, error) {
-	compCtxFunc, ok := ctx.componentFuncs[name]
-	if !ok {
-		return nil, errors.NotFoundf("context component %q", name)
-	}
-
-	facade := ctx.state.Facade()
-	config := ComponentConfig{
-		UnitName:  ctx.unit.Name(),
-		DataDir:   ctx.componentDir(name),
-		APICaller: facade.RawAPICaller(),
-	}
-	compCtx, err := compCtxFunc(config)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	return compCtx, nil
 }
 
 // RequestReboot will set the reboot flag to true on the machine agent
@@ -779,62 +724,6 @@ func (ctx *HookContext) ConfigSettings() (charm.Settings, error) {
 	return result, nil
 }
 
-// GetSecret returns the value of the specified secret.
-func (ctx *HookContext) GetSecret(name string) (coresecrets.SecretValue, error) {
-	v, err := ctx.secretFacade.GetValue(name)
-	if err != nil {
-		return nil, err
-	}
-	return v, nil
-}
-
-// CreateSecret creates a secret with the specified data.
-func (ctx *HookContext) CreateSecret(name string, args *jujuc.SecretUpsertArgs) (string, error) {
-	app, _ := names.UnitApplication(ctx.UnitName())
-	cfg := coresecrets.NewSecretConfig(coresecrets.AppSnippet, app, name)
-	cfg.RotateInterval = args.RotateInterval
-	cfg.Status = args.Status
-	cfg.Description = args.Description
-	cfg.Tags = args.Tags
-	return ctx.secretFacade.Create(cfg, args.Type, args.Value)
-}
-
-// UpdateSecret creates a secret with the specified data.
-func (ctx *HookContext) UpdateSecret(name string, args *jujuc.SecretUpsertArgs) (string, error) {
-	app, _ := names.UnitApplication(ctx.UnitName())
-	cfg := coresecrets.NewSecretConfig(coresecrets.AppSnippet, app, name)
-	cfg.RotateInterval = args.RotateInterval
-	cfg.Status = args.Status
-	cfg.Description = args.Description
-	cfg.Tags = args.Tags
-	URL := coresecrets.NewSimpleURL(cfg.Path)
-	return ctx.secretFacade.Update(URL.ID(), cfg, args.Value)
-}
-
-// GrantSecret grants access to a specified secret.
-func (ctx *HookContext) GrantSecret(name string, args *jujuc.SecretGrantRevokeArgs) error {
-	app, _ := names.UnitApplication(ctx.UnitName())
-	cfg := coresecrets.NewSecretConfig(coresecrets.AppSnippet, app, name)
-	URL := coresecrets.NewSimpleURL(cfg.Path)
-	return ctx.secretFacade.Grant(URL.ID(), &secretsmanager.SecretRevokeGrantArgs{
-		ApplicationName: args.ApplicationName,
-		UnitName:        args.UnitName,
-		RelationId:      args.RelationId,
-		Role:            coresecrets.RoleView,
-	})
-}
-
-// RevokeSecret revokes access to a specified secret.
-func (ctx *HookContext) RevokeSecret(name string, args *jujuc.SecretGrantRevokeArgs) error {
-	app, _ := names.UnitApplication(ctx.UnitName())
-	cfg := coresecrets.NewSecretConfig(coresecrets.AppSnippet, app, name)
-	URL := coresecrets.NewSimpleURL(cfg.Path)
-	return ctx.secretFacade.Revoke(URL.ID(), &secretsmanager.SecretRevokeGrantArgs{
-		ApplicationName: args.ApplicationName,
-		UnitName:        args.UnitName,
-	})
-}
-
 // GoalState returns the goal state for the current unit.
 // Implements jujuc.HookContext.ContextUnit, part of runner.Context.
 func (ctx *HookContext) GoalState() (*application.GoalState, error) {
@@ -1130,12 +1019,6 @@ func (ctx *HookContext) HookVars(
 	if ctx.seriesUpgradeTarget != "" {
 		vars = append(vars,
 			"JUJU_TARGET_SERIES="+ctx.seriesUpgradeTarget,
-		)
-	}
-
-	if ctx.secretURL != "" {
-		vars = append(vars,
-			"JUJU_SECRET_URL="+ctx.secretURL,
 		)
 	}
 
@@ -1453,14 +1336,4 @@ func (ctx *HookContext) WorkloadName() (string, error) {
 		return "", errors.NotFoundf("workload name")
 	}
 	return ctx.workloadName, nil
-}
-
-// SecretURL returns the secret URL for secret hooks.
-// This is not yet used by any hook commands - it is exported
-// for tests to use.
-func (ctx *HookContext) SecretURL() (string, error) {
-	if ctx.secretURL == "" {
-		return "", errors.NotFoundf("secret URL")
-	}
-	return ctx.secretURL, nil
 }

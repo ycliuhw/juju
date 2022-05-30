@@ -12,7 +12,7 @@ import (
 	charm "github.com/juju/charm/v8"
 	application "github.com/juju/juju/core/application"
 	network "github.com/juju/juju/core/network"
-	secrets "github.com/juju/juju/core/secrets"
+	payloads "github.com/juju/juju/core/payloads"
 	params "github.com/juju/juju/rpc/params"
 	jujuc "github.com/juju/juju/worker/uniter/runner/jujuc"
 	loggo "github.com/juju/loggo"
@@ -158,21 +158,6 @@ func (mr *MockContextMockRecorder) CloudSpec() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CloudSpec", reflect.TypeOf((*MockContext)(nil).CloudSpec))
 }
 
-// Component mocks base method.
-func (m *MockContext) Component(arg0 string) (jujuc.ContextComponent, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "Component", arg0)
-	ret0, _ := ret[0].(jujuc.ContextComponent)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// Component indicates an expected call of Component.
-func (mr *MockContextMockRecorder) Component(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "Component", reflect.TypeOf((*MockContext)(nil).Component), arg0)
-}
-
 // ConfigSettings mocks base method.
 func (m *MockContext) ConfigSettings() (charm.Settings, error) {
 	m.ctrl.T.Helper()
@@ -188,21 +173,6 @@ func (mr *MockContextMockRecorder) ConfigSettings() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ConfigSettings", reflect.TypeOf((*MockContext)(nil).ConfigSettings))
 }
 
-// CreateSecret mocks base method.
-func (m *MockContext) CreateSecret(arg0 string, arg1 *jujuc.SecretUpsertArgs) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "CreateSecret", arg0, arg1)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// CreateSecret indicates an expected call of CreateSecret.
-func (mr *MockContextMockRecorder) CreateSecret(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "CreateSecret", reflect.TypeOf((*MockContext)(nil).CreateSecret), arg0, arg1)
-}
-
 // DeleteCharmStateValue mocks base method.
 func (m *MockContext) DeleteCharmStateValue(arg0 string) error {
 	m.ctrl.T.Helper()
@@ -215,6 +185,35 @@ func (m *MockContext) DeleteCharmStateValue(arg0 string) error {
 func (mr *MockContextMockRecorder) DeleteCharmStateValue(arg0 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DeleteCharmStateValue", reflect.TypeOf((*MockContext)(nil).DeleteCharmStateValue), arg0)
+}
+
+// DownloadResource mocks base method.
+func (m *MockContext) DownloadResource(arg0 string) (string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "DownloadResource", arg0)
+	ret0, _ := ret[0].(string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// DownloadResource indicates an expected call of DownloadResource.
+func (mr *MockContextMockRecorder) DownloadResource(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "DownloadResource", reflect.TypeOf((*MockContext)(nil).DownloadResource), arg0)
+}
+
+// FlushPayloads mocks base method.
+func (m *MockContext) FlushPayloads() error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "FlushPayloads")
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// FlushPayloads indicates an expected call of FlushPayloads.
+func (mr *MockContextMockRecorder) FlushPayloads() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "FlushPayloads", reflect.TypeOf((*MockContext)(nil).FlushPayloads))
 }
 
 // GetCharmState mocks base method.
@@ -261,6 +260,21 @@ func (mr *MockContextMockRecorder) GetLogger(arg0 interface{}) *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetLogger", reflect.TypeOf((*MockContext)(nil).GetLogger), arg0)
 }
 
+// GetPayload mocks base method.
+func (m *MockContext) GetPayload(arg0, arg1 string) (*payloads.Payload, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetPayload", arg0, arg1)
+	ret0, _ := ret[0].(*payloads.Payload)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetPayload indicates an expected call of GetPayload.
+func (mr *MockContextMockRecorder) GetPayload(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetPayload", reflect.TypeOf((*MockContext)(nil).GetPayload), arg0, arg1)
+}
+
 // GetPodSpec mocks base method.
 func (m *MockContext) GetPodSpec() (string, error) {
 	m.ctrl.T.Helper()
@@ -291,21 +305,6 @@ func (mr *MockContextMockRecorder) GetRawK8sSpec() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetRawK8sSpec", reflect.TypeOf((*MockContext)(nil).GetRawK8sSpec))
 }
 
-// GetSecret mocks base method.
-func (m *MockContext) GetSecret(arg0 string) (secrets.SecretValue, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GetSecret", arg0)
-	ret0, _ := ret[0].(secrets.SecretValue)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// GetSecret indicates an expected call of GetSecret.
-func (mr *MockContextMockRecorder) GetSecret(arg0 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetSecret", reflect.TypeOf((*MockContext)(nil).GetSecret), arg0)
-}
-
 // GoalState mocks base method.
 func (m *MockContext) GoalState() (*application.GoalState, error) {
 	m.ctrl.T.Helper()
@@ -319,20 +318,6 @@ func (m *MockContext) GoalState() (*application.GoalState, error) {
 func (mr *MockContextMockRecorder) GoalState() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GoalState", reflect.TypeOf((*MockContext)(nil).GoalState))
-}
-
-// GrantSecret mocks base method.
-func (m *MockContext) GrantSecret(arg0 string, arg1 *jujuc.SecretGrantRevokeArgs) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "GrantSecret", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// GrantSecret indicates an expected call of GrantSecret.
-func (mr *MockContextMockRecorder) GrantSecret(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GrantSecret", reflect.TypeOf((*MockContext)(nil).GrantSecret), arg0, arg1)
 }
 
 // HookRelation mocks base method.
@@ -393,6 +378,21 @@ func (m *MockContext) LeaderSettings() (map[string]string, error) {
 func (mr *MockContextMockRecorder) LeaderSettings() *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "LeaderSettings", reflect.TypeOf((*MockContext)(nil).LeaderSettings))
+}
+
+// ListPayloads mocks base method.
+func (m *MockContext) ListPayloads() ([]string, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "ListPayloads")
+	ret0, _ := ret[0].([]string)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// ListPayloads indicates an expected call of ListPayloads.
+func (mr *MockContextMockRecorder) ListPayloads() *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ListPayloads", reflect.TypeOf((*MockContext)(nil).ListPayloads))
 }
 
 // LogActionMessage mocks base method.
@@ -556,20 +556,6 @@ func (mr *MockContextMockRecorder) RequestReboot(arg0 interface{}) *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RequestReboot", reflect.TypeOf((*MockContext)(nil).RequestReboot), arg0)
 }
 
-// RevokeSecret mocks base method.
-func (m *MockContext) RevokeSecret(arg0 string, arg1 *jujuc.SecretGrantRevokeArgs) error {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "RevokeSecret", arg0, arg1)
-	ret0, _ := ret[0].(error)
-	return ret0
-}
-
-// RevokeSecret indicates an expected call of RevokeSecret.
-func (mr *MockContextMockRecorder) RevokeSecret(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "RevokeSecret", reflect.TypeOf((*MockContext)(nil).RevokeSecret), arg0, arg1)
-}
-
 // SetActionFailed mocks base method.
 func (m *MockContext) SetActionFailed() error {
 	m.ctrl.T.Helper()
@@ -624,6 +610,20 @@ func (m *MockContext) SetCharmStateValue(arg0, arg1 string) error {
 func (mr *MockContextMockRecorder) SetCharmStateValue(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetCharmStateValue", reflect.TypeOf((*MockContext)(nil).SetCharmStateValue), arg0, arg1)
+}
+
+// SetPayloadStatus mocks base method.
+func (m *MockContext) SetPayloadStatus(arg0, arg1, arg2 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SetPayloadStatus", arg0, arg1, arg2)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// SetPayloadStatus indicates an expected call of SetPayloadStatus.
+func (mr *MockContextMockRecorder) SetPayloadStatus(arg0, arg1, arg2 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SetPayloadStatus", reflect.TypeOf((*MockContext)(nil).SetPayloadStatus), arg0, arg1, arg2)
 }
 
 // SetPodSpec mocks base method.
@@ -712,6 +712,20 @@ func (mr *MockContextMockRecorder) StorageTags() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "StorageTags", reflect.TypeOf((*MockContext)(nil).StorageTags))
 }
 
+// TrackPayload mocks base method.
+func (m *MockContext) TrackPayload(arg0 payloads.Payload) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "TrackPayload", arg0)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// TrackPayload indicates an expected call of TrackPayload.
+func (mr *MockContextMockRecorder) TrackPayload(arg0 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "TrackPayload", reflect.TypeOf((*MockContext)(nil).TrackPayload), arg0)
+}
+
 // UnitName mocks base method.
 func (m *MockContext) UnitName() string {
 	m.ctrl.T.Helper()
@@ -756,6 +770,20 @@ func (mr *MockContextMockRecorder) UnitWorkloadVersion() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UnitWorkloadVersion", reflect.TypeOf((*MockContext)(nil).UnitWorkloadVersion))
 }
 
+// UntrackPayload mocks base method.
+func (m *MockContext) UntrackPayload(arg0, arg1 string) error {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "UntrackPayload", arg0, arg1)
+	ret0, _ := ret[0].(error)
+	return ret0
+}
+
+// UntrackPayload indicates an expected call of UntrackPayload.
+func (mr *MockContextMockRecorder) UntrackPayload(arg0, arg1 interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UntrackPayload", reflect.TypeOf((*MockContext)(nil).UntrackPayload), arg0, arg1)
+}
+
 // UpdateActionResults mocks base method.
 func (m *MockContext) UpdateActionResults(arg0 []string, arg1 string) error {
 	m.ctrl.T.Helper()
@@ -768,21 +796,6 @@ func (m *MockContext) UpdateActionResults(arg0 []string, arg1 string) error {
 func (mr *MockContextMockRecorder) UpdateActionResults(arg0, arg1 interface{}) *gomock.Call {
 	mr.mock.ctrl.T.Helper()
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateActionResults", reflect.TypeOf((*MockContext)(nil).UpdateActionResults), arg0, arg1)
-}
-
-// UpdateSecret mocks base method.
-func (m *MockContext) UpdateSecret(arg0 string, arg1 *jujuc.SecretUpsertArgs) (string, error) {
-	m.ctrl.T.Helper()
-	ret := m.ctrl.Call(m, "UpdateSecret", arg0, arg1)
-	ret0, _ := ret[0].(string)
-	ret1, _ := ret[1].(error)
-	return ret0, ret1
-}
-
-// UpdateSecret indicates an expected call of UpdateSecret.
-func (mr *MockContextMockRecorder) UpdateSecret(arg0, arg1 interface{}) *gomock.Call {
-	mr.mock.ctrl.T.Helper()
-	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "UpdateSecret", reflect.TypeOf((*MockContext)(nil).UpdateSecret), arg0, arg1)
 }
 
 // WorkloadName mocks base method.

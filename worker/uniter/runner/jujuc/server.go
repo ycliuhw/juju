@@ -19,12 +19,10 @@ import (
 
 	"github.com/juju/cmd/v3"
 	"github.com/juju/errors"
-	"github.com/juju/featureflag"
 	"github.com/juju/loggo"
 	"github.com/juju/utils/v3/exec"
 
 	jujucmd "github.com/juju/juju/cmd"
-	"github.com/juju/juju/feature"
 	"github.com/juju/juju/juju/sockets"
 )
 
@@ -40,12 +38,6 @@ var logger = loggo.GetLogger("jujuc")
 var ErrNoStdin = errors.New("hook tool requires stdin, none supplied")
 
 type creator func(Context) (cmd.Command, error)
-
-var registeredCommands = map[string]creator{}
-
-func RegisterCommand(name string, f creator) {
-	registeredCommands[name+cmdSuffix] = f
-}
 
 // baseCommands maps Command names to creators.
 var baseCommands = map[string]creator{
@@ -94,14 +86,6 @@ func constructCommandCreator(name string, newCmd functionCmdCreator) creator {
 	}
 }
 
-var secretCommands = map[string]creator{
-	"secret-create" + cmdSuffix: NewSecretCreateCommand,
-	"secret-update" + cmdSuffix: NewSecretUpdateCommand,
-	"secret-get" + cmdSuffix:    NewSecretGetCommand,
-	"secret-grant" + cmdSuffix:  NewSecretGrantCommand,
-	"secret-revoke" + cmdSuffix: NewSecretRevokeCommand,
-}
-
 var storageCommands = map[string]creator{
 	"storage-add" + cmdSuffix:  NewStorageAddCommand,
 	"storage-get" + cmdSuffix:  NewStorageGetCommand,
@@ -114,6 +98,16 @@ var leaderCommands = map[string]creator{
 	"leader-set" + cmdSuffix: NewLeaderSetCommand,
 }
 
+var resourceCommands = map[string]creator{
+	"resource-get" + cmdSuffix: NewResourceGetCmd,
+}
+
+var payloadCommands = map[string]creator{
+	"payload-register" + cmdSuffix:   NewPayloadRegisterCmd,
+	"payload-unregister" + cmdSuffix: NewPayloadUnregisterCmd,
+	"payload-status-set" + cmdSuffix: NewPayloadStatusSetCmd,
+}
+
 func allEnabledCommands() map[string]creator {
 	all := map[string]creator{}
 	add := func(m map[string]creator) {
@@ -124,10 +118,8 @@ func allEnabledCommands() map[string]creator {
 	add(baseCommands)
 	add(storageCommands)
 	add(leaderCommands)
-	if featureflag.Enabled(feature.Secrets) {
-		add(secretCommands)
-	}
-	add(registeredCommands)
+	add(resourceCommands)
+	add(payloadCommands)
 	return all
 }
 

@@ -20,8 +20,6 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/juju/juju/agent/tools"
-	"github.com/juju/juju/component/all"
-	"github.com/juju/juju/core/secrets"
 	"github.com/juju/juju/core/status"
 	"github.com/juju/juju/juju/testing"
 	"github.com/juju/juju/state"
@@ -60,8 +58,6 @@ func (s *UniterSuite) SetUpSuite(c *gc.C) {
 
 	s.PatchEnvironment("LC_ALL", "en_US")
 	s.unitDir = filepath.Join(s.dataDir, "agents", "unit-u-0")
-	err = all.RegisterForServer()
-	c.Assert(err, jc.ErrorIsNil)
 }
 
 func (s *UniterSuite) SetUpTest(c *gc.C) {
@@ -462,22 +458,6 @@ func (s *UniterSuite) TestUniterStartHook(c *gc.C) {
 			// reboot.
 			waitHooks{"start"},
 			verifyRunning{},
-		),
-	})
-}
-
-func (s *UniterSuite) TestUniterRotateSecretHook(c *gc.C) {
-	s.runUniterTests(c, []uniterTest{
-		ut(
-			"rotate secret hook runs when there are secrets to be rotated",
-			createCharm{},
-			serveCharm{},
-			createUniter{},
-			waitHooks(startupHooks(false)),
-			waitUnitAgent{status: status.Idle},
-			createSecret{"app/u/password"},
-			rotateSecret{secrets.NewSimpleURL("app/u/password").ID()},
-			waitHooks{"secret-rotate"},
 		),
 	})
 }

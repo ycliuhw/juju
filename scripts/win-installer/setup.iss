@@ -4,12 +4,12 @@
 #if GetEnv('JUJU_VERSION') != ""
 #define MyAppVersion=GetEnv('JUJU_VERSION')
 #else
-#define MyAppVersion="2.9.30"
+#define MyAppVersion="2.9.32"
 #endif
 
 #define MyAppName "Juju"
 #define MyAppPublisher "Canonical, Ltd"
-#define MyAppURL "http://jujucharms.com/"
+#define MyAppURL "http://juju.is/"
 #define MyAppExeName "juju.exe"
 
 [Setup]

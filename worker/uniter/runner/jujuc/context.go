@@ -17,8 +17,8 @@ import (
 	"github.com/juju/juju/core/application"
 	"github.com/juju/juju/core/life"
 	"github.com/juju/juju/core/network"
+	"github.com/juju/juju/core/payloads"
 	"github.com/juju/juju/core/relation"
-	"github.com/juju/juju/core/secrets"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/storage"
 )
@@ -44,10 +44,10 @@ type HookContext interface {
 	ContextLeadership
 	ContextMetrics
 	ContextStorage
-	ContextComponents
+	ContextResources
+	ContextPayloads
 	ContextRelations
 	ContextVersion
-	ContextSecrets
 
 	// GetLogger returns a juju loggo Logger for the supplied module that is
 	// correctly wired up for the given context
@@ -163,53 +163,6 @@ type ContextUnit interface {
 	CloudSpec() (*params.CloudSpec, error)
 }
 
-// SecretUpsertArgs specifies args used to create or update a secret.
-type SecretUpsertArgs struct {
-	// Type is the secret type (only used for insert).
-	Type secrets.SecretType
-
-	// Value is the new secret value or nil to not update.
-	Value secrets.SecretValue
-
-	// RotateInterval is the new rotate interval or nil to not update.
-	RotateInterval *time.Duration
-
-	// Status is whether a secret is pending or active or nil to not update.
-	Status *secrets.SecretStatus
-
-	// Description describes the secret or nil to not update.
-	Description *string
-
-	// Tags are stored with the secret metadata or nil to not update.
-	Tags *map[string]string
-}
-
-// SecretGrantRevokeArgs specify the args used to grant or revoke access to a secret.
-type SecretGrantRevokeArgs struct {
-	ApplicationName *string
-	UnitName        *string
-	RelationId      *int
-	Role            *secrets.SecretRole
-}
-
-// ContextSecrets is the part of a hook context related to secrets.
-type ContextSecrets interface {
-	// GetSecret returns the value of the specified secret.
-	GetSecret(ID string) (secrets.SecretValue, error)
-
-	// CreateSecret creates a secret with the specified data.
-	CreateSecret(name string, args *SecretUpsertArgs) (string, error)
-
-	// UpdateSecret creates a secret with the specified data.
-	UpdateSecret(name string, args *SecretUpsertArgs) (string, error)
-
-	// GrantSecret grants access to the specified secret.
-	GrantSecret(name string, args *SecretGrantRevokeArgs) error
-
-	// RevokeSecret revokes access to the specified secret.
-	RevokeSecret(name string, args *SecretGrantRevokeArgs) error
-}
-
 // ContextStatus is the part of a hook context related to the unit's status.
 type ContextStatus interface {
 	// UnitStatus returns the executing unit's current status.
@@ -312,12 +265,29 @@ type ContextStorage interface {
 	AddUnitStorage(map[string]params.StorageConstraints) error
 }
 
-// ContextComponents exposes modular Juju components as they relate to
-// the unit in the context of the hook.
-type ContextComponents interface {
-	// Component returns the ContextComponent with the supplied name if
-	// it was found.
-	Component(name string) (ContextComponent, error)
+// ContextResources exposes the functionality needed by the
+// "resource-*" hook commands.
+type ContextResources interface {
+	// DownloadResource downloads the named resource and returns
+	// the path to which it was downloaded.
+	DownloadResource(name string) (filePath string, _ error)
+}
+
+// ContextPayloads exposes the functionality needed by the
+// "payload-*" hook commands.
+type ContextPayloads interface {
+	// GetPayload returns the payload info corresponding to the given ID.
+	GetPayload(class, id string) (*payloads.Payload, error)
+	// TrackPayload records the payload info in the hook context.
+	TrackPayload(payload payloads.Payload) error
+	// UntrackPayload removes the payload from our list of payloads to track.
+	UntrackPayload(class, id string) error
+	// SetPayloadStatus sets the status of the payload.
+	SetPayloadStatus(class, id, status string) error
+	// ListPayloads returns the list of registered payload IDs.
+	ListPayloads() ([]string, error)
+	// FlushPayloads pushes the hook context data out to state.
+	FlushPayloads() error
 }
 
 // ContextRelations exposes the relations associated with the unit.
@@ -329,20 +299,6 @@ type ContextRelations interface {
 	// RelationIds returns the ids of all relations the executing unit is
 	// currently participating in or an error if they are not available.
 	RelationIds() ([]int, error)
-}
-
-// ContextComponent is a single modular Juju component as it relates to
-// the current unit and hook. Components should implement this interfaces
-// in a type-safe way. Ensuring checked type-conversions are preformed on
-// the result and value interfaces. You will use the runner.RegisterComponentFunc
-// to register a your components concrete ContextComponent implementation.
-//
-// See: process/context/context.go for an implementation example.
-//
-type ContextComponent interface {
-	// Flush pushes the component's data to Juju state.
-	// In the Flush implementation, call your components API.
-	Flush() error
 }
 
 // ContextRelation expresses the capabilities of a hook with respect to a relation.

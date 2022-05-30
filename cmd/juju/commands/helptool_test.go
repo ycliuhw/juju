@@ -10,7 +10,6 @@ import (
 
 	gc "gopkg.in/check.v1"
 
-	"github.com/juju/juju/feature"
 	"github.com/juju/juju/testing"
 )
 
@@ -22,7 +21,6 @@ var _ = gc.Suite(&HelpToolSuite{})
 
 func (suite *HelpToolSuite) SetUpTest(c *gc.C) {
 	suite.FakeJujuXDGDataHomeSuite.SetUpTest(c)
-	setFeatureFlags(feature.Secrets)
 }
 
 func (suite *HelpToolSuite) TestHelpToolHelp(c *gc.C) {
@@ -73,12 +71,16 @@ Currently available charm hook tools are:
     network-get              get network config
     open-port                register a request to open a port or port range
     opened-ports             list all ports or port ranges opened by the unit
+    payload-register         register a charm payload with juju
+    payload-status-set       update the status of a payload
+    payload-unregister       stop tracking a payload
     pod-spec-get             get k8s spec information (deprecated)
     pod-spec-set             set k8s spec information (deprecated)
     relation-get             get relation settings
     relation-ids             list all relation ids with the given relation name
     relation-list            list relation units
     relation-set             set relation settings
+    resource-get             get the path to the locally cached resource file
     state-delete             delete server-side-state key value pair
     state-get                print server-side-state value
     state-set                set server-side-state values
@@ -132,11 +134,6 @@ var expectedCommands = []string{
 	"relation-list",
 	"relation-set",
 	"resource-get",
-	"secret-create",
-	"secret-get",
-	"secret-grant",
-	"secret-revoke",
-	"secret-update",
 	"state-delete",
 	"state-get",
 	"state-set",
