@@ -126,6 +126,7 @@ var facadeVersions = map[string]int{
 	"UserManager":                  3,
 	"VolumeAttachmentsWatcher":     2,
 	"VolumeAttachmentPlansWatcher": 1,
+	"SecretMigrationManager":       1,
 }
 
 // bestVersion tries to find the newest version in the version list that we can

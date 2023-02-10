@@ -39627,6 +39627,147 @@
         }
     },
     {
+        "Name": "SecretMigrationManager",
+        "Description": "Facade provides access to the CAASFirewaller API facade for sidecar applications.",
+        "Version": 1,
+        "AvailableTo": [
+            "controller-machine-agent",
+            "machine-agent",
+            "unit-agent",
+            "model-user"
+        ],
+        "Schema": {
+            "type": "object",
+            "properties": {
+                "ModelConfig": {
+                    "type": "object",
+                    "properties": {
+                        "Result": {
+                            "$ref": "#/definitions/ModelConfigResult"
+                        }
+                    },
+                    "description": "ModelConfig returns the current model's configuration."
+                },
+                "RemoveSecretMigrationTasks": {
+                    "type": "object",
+                    "description": "RemoveSecretMigrationTasks removes the completed secret migration tasks."
+                },
+                "ScheduleSecretMigrationTasks": {
+                    "type": "object",
+                    "description": "ScheduleSecretMigrationTasks schedules secret migration tasks."
+                },
+                "WatchForCompletedSecretMigrationTasks": {
+                    "type": "object",
+                    "properties": {
+                        "Result": {
+                            "$ref": "#/definitions/StringsWatchResult"
+                        }
+                    },
+                    "description": "WatchForCompletedSecretMigrationTasks returns a StringsWatcher that notifies of completed secret migration tasks."
+                },
+                "WatchForFailedSecretMigrationTasks": {
+                    "type": "object",
+                    "properties": {
+                        "Result": {
+                            "$ref": "#/definitions/StringsWatchResult"
+                        }
+                    },
+                    "description": "WatchForFailedSecretMigrationTasks returns a StringsWatcher that notifies of failed secret migration tasks."
+                },
+                "WatchForModelConfigChanges": {
+                    "type": "object",
+                    "properties": {
+                        "Result": {
+                            "$ref": "#/definitions/NotifyWatchResult"
+                        }
+                    },
+                    "description": "WatchForModelConfigChanges returns a NotifyWatcher that observes\nchanges to the model configuration.\nNote that although the NotifyWatchResult contains an Error field,\nit's not used because we are only returning a single watcher,\nso we use the regular error return."
+                }
+            },
+            "definitions": {
+                "Error": {
+                    "type": "object",
+                    "properties": {
+                        "code": {
+                            "type": "string"
+                        },
+                        "info": {
+                            "type": "object",
+                            "patternProperties": {
+                                ".*": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        },
+                        "message": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "message",
+                        "code"
+                    ]
+                },
+                "ModelConfigResult": {
+                    "type": "object",
+                    "properties": {
+                        "config": {
+                            "type": "object",
+                            "patternProperties": {
+                                ".*": {
+                                    "type": "object",
+                                    "additionalProperties": true
+                                }
+                            }
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "config"
+                    ]
+                },
+                "NotifyWatchResult": {
+                    "type": "object",
+                    "properties": {
+                        "NotifyWatcherId": {
+                            "type": "string"
+                        },
+                        "error": {
+                            "$ref": "#/definitions/Error"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "NotifyWatcherId"
+                    ]
+                },
+                "StringsWatchResult": {
+                    "type": "object",
+                    "properties": {
+                        "changes": {
+                            "type": "array",
+                            "items": {
+                                "type": "string"
+                            }
+                        },
+                        "error": {
+                            "$ref": "#/definitions/Error"
+                        },
+                        "watcher-id": {
+                            "type": "string"
+                        }
+                    },
+                    "additionalProperties": false,
+                    "required": [
+                        "watcher-id"
+                    ]
+                }
+            }
+        }
+    },
+    {
         "Name": "Secrets",
         "Description": "SecretsAPI is the backend for the Secrets facade.",
         "Version": 1,

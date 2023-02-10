@@ -575,6 +575,11 @@ func allCollections() CollectionSchema {
 				Key: []string{"model-uuid"},
 			}},
 		},
+		secretMigrationTasksC: {
+			indexes: []mgo.Index{{
+				Key: []string{"owner-tag"},
+			}},
+		},
 
 		// ----------------------
 
@@ -691,6 +696,7 @@ const (
 	secretRotateC         = "secretRotate"
 	secretBackendsC       = "secretBackends"
 	secretBackendsRotateC = "secretBackendsRotate"
+	secretMigrationTasksC = "secretMigrationTasksC"
 )
 
 // watcherIgnoreList contains all the collections in mongo that should not be watched by the

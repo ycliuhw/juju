@@ -2012,6 +2012,7 @@ func (st *State) WatchUpgradeInfo() NotifyWatcher {
 // WatchForModelConfigChanges returns a NotifyWatcher waiting for the Model
 // Config to change.
 func (model *Model) WatchForModelConfigChanges() NotifyWatcher {
+	// Use this watcher !!!!
 	return newEntityWatcher(model.st, settingsC, model.st.docID(modelGlobalKey))
 }
 
@@ -2072,6 +2073,65 @@ func (sb *storageBackend) WatchFilesystemAttachment(host names.Tag, f names.File
 func (a *Application) WatchCharmConfig() (NotifyWatcher, error) {
 	configKey := a.charmConfigKey()
 	return newEntityWatcher(a.st, settingsC, a.st.docID(configKey)), nil
+}
+
+// WatchSecretMigrationTasks returns a watcher for notifying the uniter when there
+// are any owned secrets need to be migrated to the new secret backend.
+func (a *Application) WatchSecretMigrationTasks() NotifyWatcher {
+	return newSecretMigrationTaskNotifyWatcher(a.st, a.Tag(), SecretMigrationTaskPending)
+}
+
+// WatchSecretMigrationTasks returns a watcher for notifying the uniter when there
+// are any owned secrets need to be migrated to the new secret backend.
+func (u *Unit) WatchSecretMigrationTasks() NotifyWatcher {
+	return newSecretMigrationTaskNotifyWatcher(u.st, u.Tag(), SecretMigrationTaskPending)
+}
+
+// WatchForFailedSecretMigrationTasks returns a watcher for notifying the worker if there are any secret migration tasks' status changed to failed.
+func (m *Model) WatchForFailedSecretMigrationTasks() StringsWatcher {
+	return newSecretMigrationTaskStringWatcher(m.st, nil, SecretMigrationTaskFailed, SecretMigrationTaskFailed)
+}
+
+// WatchForCompletedSecretMigrationTasks returns a watcher for notifying the worker if there are any secret migration tasks' status changed to  completed.
+func (m *Model) WatchForCompletedSecretMigrationTasks() StringsWatcher {
+	return newSecretMigrationTaskStringWatcher(m.st, nil, SecretMigrationTaskFailed, SecretMigrationTaskCompleted)
+}
+
+func secretMigrationTasksFitler(
+	st *State, ownerTag names.Tag, statuses ...SecretMigrationTaskStatus,
+) func(id interface{}) bool {
+	return func(id interface{}) bool {
+		secretMigrationTaskCol, closer := st.db().GetCollection(secretMigrationTasksC)
+		defer closer()
+
+		var doc secretMigrationTaskDoc
+		if err := secretMigrationTaskCol.FindId(id).One(&doc); err != nil {
+			return false
+		}
+		if ownerTag != nil && ownerTag.String() != doc.OwnerTag {
+			return false
+		}
+		if len(statuses) == 0 {
+			return true
+		}
+		for _, status := range statuses {
+			if status == SecretMigrationTaskStatus(doc.Status) {
+				return true
+			}
+		}
+		return false
+	}
+}
+
+func newSecretMigrationTaskNotifyWatcher(st *State, ownerTag names.Tag, statuses ...SecretMigrationTaskStatus) NotifyWatcher {
+	filter := secretMigrationTasksFitler(st, ownerTag, statuses...)
+	return newNotifyCollWatcher(st, secretMetadataC, filter)
+}
+
+func newSecretMigrationTaskStringWatcher(st *State, ownerTag names.Tag, statuses ...SecretMigrationTaskStatus) StringsWatcher {
+	return newCollectionWatcher(st, colWCfg{
+		col: secretMetadataC, filter: secretMigrationTasksFitler(st, ownerTag, statuses...),
+	})
 }
 
 // WatchConfigSettings returns a watcher for observing changes to the

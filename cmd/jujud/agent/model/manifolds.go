@@ -62,6 +62,7 @@ import (
 	"github.com/juju/juju/worker/provisioner"
 	"github.com/juju/juju/worker/pruner"
 	"github.com/juju/juju/worker/remoterelations"
+	"github.com/juju/juju/worker/secretmigrationmanager"
 	"github.com/juju/juju/worker/singular"
 	"github.com/juju/juju/worker/statushistorypruner"
 	"github.com/juju/juju/worker/storageprovisioner"
@@ -309,6 +310,13 @@ func commonManifolds(config ManifoldsConfig) dependency.Manifolds {
 				OpenFn: sinks.OpenSyslog,
 			}},
 			Logger: config.LoggingContext.GetLogger("juju.worker.logforwarder"),
+		})),
+		secretMigrationManagerName: ifNotMigrating(secretmigrationmanager.Manifold(secretmigrationmanager.ManifoldConfig{
+			APICallerName: apiCallerName,
+			Logger:        config.LoggingContext.GetLogger("juju.worker.secretmigrationmanager"),
+			Clock:         config.Clock,
+			NewWorker:     secretmigrationmanager.NewWorker,
+			NewFacade:     secretmigrationmanager.NewClient,
 		})),
 		// The environ upgrader runs on all controller agents, and
 		// unlocks the gate when the environ is up-to-date. The
@@ -719,6 +727,8 @@ const (
 	caasUnitProvisionerName        = "caas-unit-provisioner"
 	caasStorageProvisionerName     = "caas-storage-provisioner"
 	caasBrokerTrackerName          = "caas-broker-tracker"
+
+	secretMigrationManagerName = "secret-migration-manager"
 
 	validCredentialFlagName = "valid-credential-flag"
 )
