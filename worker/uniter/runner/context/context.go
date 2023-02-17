@@ -712,16 +712,16 @@ func (ctx *HookContext) AddUnitStorage(cons map[string]params.StorageConstraints
 
 // OpenPortRange marks the supplied port range for opening.
 // Implements jujuc.HookContext.ContextNetworking, part of runner.Context.
-func (ctx *HookContext) OpenPortRange(endpointName string, portRange network.PortRange) error {
-	return ctx.portRangeChanges.OpenPortRange(endpointName, portRange)
+func (ctx *HookContext) OpenPortRange(application bool, endpointName string, portRange network.PortRange) error {
+	return ctx.portRangeChanges.OpenPortRange(application, endpointName, portRange)
 }
 
 // ClosePortRange ensures the supplied port range is closed even when
 // the executing unit's application is exposed (unless it is opened
 // separately by a co- located unit).
 // Implements jujuc.HookContext.ContextNetworking, part of runner.Context.
-func (ctx *HookContext) ClosePortRange(endpointName string, portRange network.PortRange) error {
-	return ctx.portRangeChanges.ClosePortRange(endpointName, portRange)
+func (ctx *HookContext) ClosePortRange(application bool, endpointName string, portRange network.PortRange) error {
+	return ctx.portRangeChanges.ClosePortRange(application, endpointName, portRange)
 }
 
 // OpenedPortRanges returns all port ranges currently opened by this
@@ -1441,19 +1441,20 @@ func (ctx *HookContext) doFlush(process string) error {
 	}
 
 	if len(ctx.portRangeChanges.pendingOpenRanges)+len(ctx.portRangeChanges.pendingCloseRanges) > 0 {
-		// Open/Close port can be done on leaders only for CAAS model.
-		if err := ctx.caasLeadershipCheck(); err != nil {
-			return errors.Trace(err)
-		}
-
 		for endpointName, portRanges := range ctx.portRangeChanges.pendingOpenRanges {
 			for _, pr := range portRanges {
-				b.OpenPortRange(endpointName, pr)
+				b.OpenPortRange(
+					endpointName, pr,
+					// application,
+				)
 			}
 		}
 		for endpointName, portRanges := range ctx.portRangeChanges.pendingCloseRanges {
 			for _, pr := range portRanges {
-				b.ClosePortRange(endpointName, pr)
+				b.ClosePortRange(
+					endpointName, pr,
+					// application,
+				)
 			}
 		}
 	}
@@ -1568,20 +1569,6 @@ func (ctx *HookContext) doFlush(process string) error {
 	// Call completed successfully; update local state
 	ctx.charmStateCacheDirty = false
 	return nil
-}
-
-func (ctx *HookContext) caasLeadershipCheck() error {
-	if ctx.modelType == model.IAAS {
-		return nil
-	}
-	isLeader, err := ctx.IsLeader()
-	if err != nil {
-		return errors.Annotatef(err, "cannot determine leadership")
-	}
-	if isLeader {
-		return nil
-	}
-	return ErrIsNotLeader
 }
 
 // If we're running the upgrade-charm hook and no podspec update was done,

@@ -22,12 +22,14 @@ const (
 // portCommand implements the open-port and close-port commands.
 type portCommand struct {
 	cmd.CommandBase
-	info       *cmd.Info
-	action     func(*portCommand) error
-	portRange  network.PortRange
-	endpoints  string
-	formatFlag string // deprecated
+	ctx       Context
+	info      *cmd.Info
+	action    func(bool, *portCommand) error
+	portRange network.PortRange
 
+	endpoints   string
+	formatFlag  string // deprecated
+	application bool
 }
 
 func (c *portCommand) Info() *cmd.Info {
@@ -37,6 +39,7 @@ func (c *portCommand) Info() *cmd.Info {
 func (c *portCommand) SetFlags(f *gnuflag.FlagSet) {
 	f.StringVar(&c.formatFlag, "format", "", "deprecated format flag")
 	f.StringVar(&c.endpoints, "endpoints", "", "a comma-delimited list of application endpoints to target with this operation")
+	f.BoolVar(&c.application, "app", false, `pick whether you are setting "application" settings or "unit" settings`)
 }
 
 func (c *portCommand) Init(args []string) error {
@@ -57,7 +60,16 @@ func (c *portCommand) Run(ctx *cmd.Context) error {
 	if c.formatFlag != "" {
 		fmt.Fprintf(ctx.Stderr, "--format flag deprecated for command %q", c.Info().Name)
 	}
-	return c.action(c)
+	if c.application {
+		isLeader, lErr := c.ctx.IsLeader()
+		if lErr != nil {
+			return errors.Annotate(lErr, "cannot determine leadership status")
+		}
+		if !isLeader {
+			return errors.Errorf("--app flag can only be used by the leader unit")
+		}
+	}
+	return c.action(c.application, c)
 }
 
 var openPortInfo = &cmd.Info{
@@ -67,6 +79,9 @@ var openPortInfo = &cmd.Info{
 	Doc: `
 open-port registers a request to open the specified port or port range.
 
+If the unit is the leader, it can set the port or port range change on the application level using
+"--app".
+
 By default, the specified port or port range will be opened for all defined
 application endpoints. The --endpoints option can be used to constrain the
 open request to a comma-delimited list of application endpoints.
@@ -75,6 +90,7 @@ open request to a comma-delimited list of application endpoints.
 
 func NewOpenPortCommand(ctx Context) (cmd.Command, error) {
 	return &portCommand{
+		ctx:    ctx,
 		info:   openPortInfo,
 		action: makePortRangeCommand(ctx.OpenPortRange),
 	}, nil
@@ -87,6 +103,9 @@ var closePortInfo = &cmd.Info{
 	Doc: `
 close-port registers a request to close the specified port or port range.
 
+If the unit is the leader, it can set the port or port range change on the application level using
+"--app".
+
 By default, the specified port or port range will be closed for all defined
 application endpoints. The --endpoints option can be used to constrain the
 close request to a comma-delimited list of application endpoints.
@@ -95,21 +114,22 @@ close request to a comma-delimited list of application endpoints.
 
 func NewClosePortCommand(ctx Context) (cmd.Command, error) {
 	return &portCommand{
+		ctx:    ctx,
 		info:   closePortInfo,
 		action: makePortRangeCommand(ctx.ClosePortRange),
 	}, nil
 }
 
-func makePortRangeCommand(op func(string, network.PortRange) error) func(*portCommand) error {
-	return func(c *portCommand) error {
+func makePortRangeCommand(op func(bool, string, network.PortRange) error) func(bool, *portCommand) error {
+	return func(application bool, c *portCommand) error {
 		// Operation applies to all endpoints
 		if c.endpoints == "" {
-			return op("", c.portRange)
+			return op(application, "", c.portRange)
 		}
 
 		for _, endpoint := range strings.Split(c.endpoints, ",") {
 			endpoint = strings.TrimSpace(endpoint)
-			if err := op(endpoint, c.portRange); err != nil {
+			if err := op(application, endpoint, c.portRange); err != nil {
 				return errors.Trace(err)
 			}
 		}

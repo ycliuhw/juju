@@ -847,12 +847,17 @@ func NewCommitHookParamsBuilder(unitTag names.UnitTag) *CommitHookParamsBuilder 
 }
 
 // OpenPortRange records a request to open a particular port range.
-func (b *CommitHookParamsBuilder) OpenPortRange(endpoint string, portRange network.PortRange) {
+func (b *CommitHookParamsBuilder) OpenPortRange(
+	endpoint string, portRange network.PortRange,
+	// TODO: bump facade version!!!
+	// Application bool,
+) {
 	b.arg.OpenPorts = append(b.arg.OpenPorts, params.EntityPortRange{
 		// The Tag is optional as the call uses the Tag from the
 		// CommitHookChangesArg; it is included here for consistency.
 		Tag:      b.arg.Tag,
 		Endpoint: endpoint,
+		// Application: Application,
 		Protocol: portRange.Protocol,
 		FromPort: portRange.FromPort,
 		ToPort:   portRange.ToPort,
@@ -860,12 +865,17 @@ func (b *CommitHookParamsBuilder) OpenPortRange(endpoint string, portRange netwo
 }
 
 // ClosePortRange records a request to close a particular port range.
-func (b *CommitHookParamsBuilder) ClosePortRange(endpoint string, portRange network.PortRange) {
+func (b *CommitHookParamsBuilder) ClosePortRange(
+	endpoint string, portRange network.PortRange,
+	// TODO: bump facade version!!!
+	// Application bool,
+) {
 	b.arg.ClosePorts = append(b.arg.ClosePorts, params.EntityPortRange{
 		// The Tag is optional as the call uses the Tag from the
 		// CommitHookChangesArg; it is included here for consistency.
 		Tag:      b.arg.Tag,
 		Endpoint: endpoint,
+		// Application: Application,
 		Protocol: portRange.Protocol,
 		FromPort: portRange.FromPort,
 		ToPort:   portRange.ToPort,

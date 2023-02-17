@@ -39,20 +39,28 @@ func newPortRangeChangeRecorder(
 	}
 }
 
-func (r *portRangeChangeRecorder) validatePortRangeForCAAS(portRange network.PortRange) error {
-	if r.modelType == model.IAAS || portRange.FromPort == portRange.ToPort {
-		return nil
+func (r *portRangeChangeRecorder) validatePortRangeForModel(application bool, portRange network.PortRange) error {
+	if r.modelType == model.IAAS && application {
+		return errors.NewNotSupported(nil, "application port ranges are not supported for IAAS models")
 	}
-	return errors.NewNotSupported(nil, "port ranges are not supported for k8s applications, please specify a single port")
+	if r.modelType == model.CAAS && !application {
+		return errors.NewNotSupported(nil, "unit port ranges are not supported for CAAS models")
+	}
+
+	if r.modelType == model.CAAS && portRange.FromPort != portRange.ToPort {
+		return errors.NewNotSupported(nil, "port ranges are not supported for k8s applications, please specify a single port")
+	}
+	return nil
 }
 
 // OpenPortRange registers a request to open the specified port range for the
 // provided endpoint name.
-func (r *portRangeChangeRecorder) OpenPortRange(endpointName string, portRange network.PortRange) error {
+func (r *portRangeChangeRecorder) OpenPortRange(application bool, endpointName string, portRange network.PortRange) error {
 	if err := portRange.Validate(); err != nil {
 		return errors.Trace(err)
 	}
-	if err := r.validatePortRangeForCAAS(portRange); err != nil {
+
+	if err := r.validatePortRangeForModel(application, portRange); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -68,7 +76,7 @@ func (r *portRangeChangeRecorder) OpenPortRange(endpointName string, portRange n
 	// Ensure port range does not conflict with the ones already recorded
 	// for opening by this unit.
 	if err := r.checkForConflict(endpointName, portRange, r.unitTag, r.pendingOpenRanges, true); err != nil {
-		if !errors.IsAlreadyExists(err) {
+		if !errors.Is(err, errors.AlreadyExists) {
 			return errors.Annotatef(err, "cannot open %v (unit %q)", portRange, r.unitTag.Id())
 		}
 
@@ -76,16 +84,17 @@ func (r *portRangeChangeRecorder) OpenPortRange(endpointName string, portRange n
 		return nil
 	}
 
-	// Ensure port range does not conflict with existing open port ranges
-	// for all units deployed to the machine.
-	for otherUnitTag, otherUnitRanges := range r.machinePortRanges {
-		if err := r.checkForConflict(endpointName, portRange, otherUnitTag, otherUnitRanges, false); err != nil {
-			if !errors.IsAlreadyExists(err) {
-				return errors.Annotatef(err, "cannot open %v (unit %q)", portRange, r.unitTag.Id())
+	if !application {
+		// Ensure port range does not conflict with existing open port ranges
+		// for all units deployed to the machine.
+		for otherUnitTag, otherUnitRanges := range r.machinePortRanges {
+			if err := r.checkForConflict(endpointName, portRange, otherUnitTag, otherUnitRanges, false); err != nil {
+				if !errors.Is(err, errors.AlreadyExists) {
+					return errors.Annotatef(err, "cannot open %v (unit %q)", portRange, r.unitTag.Id())
+				}
+				// Already exists; this is a no-op.
+				return nil
 			}
-
-			// Already exists; this is a no-op.
-			return nil
 		}
 	}
 
@@ -98,11 +107,11 @@ func (r *portRangeChangeRecorder) OpenPortRange(endpointName string, portRange n
 
 // ClosePortRange registers a request to close the specified port range for the
 // provided endpoint name. If the machine has no ports open yet, this is a no-op.
-func (r *portRangeChangeRecorder) ClosePortRange(endpointName string, portRange network.PortRange) error {
+func (r *portRangeChangeRecorder) ClosePortRange(application bool, endpointName string, portRange network.PortRange) error {
 	if err := portRange.Validate(); err != nil {
 		return errors.Trace(err)
 	}
-	if err := r.validatePortRangeForCAAS(portRange); err != nil {
+	if err := r.validatePortRangeForModel(application, portRange); err != nil {
 		return errors.Trace(err)
 	}
 
@@ -118,7 +127,7 @@ func (r *portRangeChangeRecorder) ClosePortRange(endpointName string, portRange 
 	// Ensure port range does not conflict with the ones already recorded
 	// for closing by this unit.
 	if err := r.checkForConflict(endpointName, portRange, r.unitTag, r.pendingCloseRanges, true); err != nil {
-		if !errors.IsAlreadyExists(err) {
+		if !errors.Is(err, errors.AlreadyExists) {
 			return errors.Annotatef(err, "cannot close %v (unit %q)", portRange, r.unitTag.Id())
 		}
 
@@ -126,18 +135,20 @@ func (r *portRangeChangeRecorder) ClosePortRange(endpointName string, portRange 
 		return nil
 	}
 
-	// The port range should be accepted for closing if:
-	// - it exactly matches a an already open port for this unit, or
-	// - it doesn't conflict with any open port range; this could be either
-	//   because it matches an existing port range for this unit but the endpoints
-	//   do not match (e.g. open X for all endpoints, close X for endpoint "foo")
-	//   or because the port range is not open in which case this will be a
-	//   no-op and filtered out by the controller.
-	for otherUnitTag, otherUnitRanges := range r.machinePortRanges {
-		if err := r.checkForConflict(endpointName, portRange, otherUnitTag, otherUnitRanges, false); err != nil {
-			// Conflicts with an open port range for another unit.
-			if !errors.IsAlreadyExists(err) {
-				return errors.Annotatef(err, "cannot close %v (unit %q)", portRange, r.unitTag.Id())
+	if !application {
+		// The port range should be accepted for closing if:
+		// - it exactly matches a an already open port for this unit, or
+		// - it doesn't conflict with any open port range; this could be either
+		//   because it matches an existing port range for this unit but the endpoints
+		//   do not match (e.g. open X for all endpoints, close X for endpoint "foo")
+		//   or because the port range is not open in which case this will be a
+		//   no-op and filtered out by the controller.
+		for otherUnitTag, otherUnitRanges := range r.machinePortRanges {
+			if err := r.checkForConflict(endpointName, portRange, otherUnitTag, otherUnitRanges, false); err != nil {
+				// Conflicts with an open port range for another unit.
+				if !errors.Is(err, errors.AlreadyExists) {
+					return errors.Annotatef(err, "cannot close %v (unit %q)", portRange, r.unitTag.Id())
+				}
 			}
 		}
 	}
@@ -199,10 +210,14 @@ func (r *portRangeChangeRecorder) checkForConflict(incomingEndpoint string, inco
 // OpenedUnitPortRanges returns the set of port ranges currently open by the
 // current unit grouped by endpoint.
 func (r *portRangeChangeRecorder) OpenedUnitPortRanges() network.GroupedPortRanges {
-	if len(r.machinePortRanges[r.unitTag]) > 0 {
-		return r.machinePortRanges[r.unitTag]
+	gpr := make(network.GroupedPortRanges)
+	for endpointName, pr := range r.machinePortRanges[r.unitTag] {
+		gpr[endpointName] = pr
 	}
-	return r.appPortRanges
+	for endpointName, pr := range r.appPortRanges {
+		gpr[endpointName] = pr
+	}
+	return gpr
 }
 
 // PendingChanges returns the set of recorded open/close port range requests

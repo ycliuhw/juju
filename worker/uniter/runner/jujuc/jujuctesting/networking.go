@@ -26,7 +26,7 @@ func (ni *NetworkInterface) CheckPortRanges(c *gc.C, expected network.GroupedPor
 }
 
 // AddPortRanges adds the specified port range.
-func (ni *NetworkInterface) AddPortRange(endpoint string, portRange network.PortRange) {
+func (ni *NetworkInterface) AddPortRange(application bool, endpoint string, portRange network.PortRange) {
 	if ni.PortRangesByEndpoint == nil {
 		ni.PortRangesByEndpoint = make(network.GroupedPortRanges)
 	}
@@ -35,7 +35,7 @@ func (ni *NetworkInterface) AddPortRange(endpoint string, portRange network.Port
 }
 
 // RemovePortRange removes the specified port range.
-func (ni *NetworkInterface) RemovePortRange(endpoint string, portRange network.PortRange) {
+func (ni *NetworkInterface) RemovePortRange(application bool, endpoint string, portRange network.PortRange) {
 	if ni.PortRangesByEndpoint == nil {
 		return
 	}
@@ -72,24 +72,24 @@ func (c *ContextNetworking) PrivateAddress() (string, error) {
 }
 
 // OpenPortRange implements jujuc.ContextNetworking.
-func (c *ContextNetworking) OpenPortRange(endpoint string, portRange network.PortRange) error {
+func (c *ContextNetworking) OpenPortRange(application bool, endpoint string, portRange network.PortRange) error {
 	c.stub.AddCall("OpenPortRange", endpoint, portRange)
 	if err := c.stub.NextErr(); err != nil {
 		return errors.Trace(err)
 	}
 
-	c.info.AddPortRange(endpoint, portRange)
+	c.info.AddPortRange(application, endpoint, portRange)
 	return nil
 }
 
 // ClosePortRange implements jujuc.ContextNetworking.
-func (c *ContextNetworking) ClosePortRange(endpoint string, portRange network.PortRange) error {
+func (c *ContextNetworking) ClosePortRange(application bool, endpoint string, portRange network.PortRange) error {
 	c.stub.AddCall("ClosePortRange", endpoint, portRange)
 	if err := c.stub.NextErr(); err != nil {
 		return errors.Trace(err)
 	}
 
-	c.info.RemovePortRange(endpoint, portRange)
+	c.info.RemovePortRange(application, endpoint, portRange)
 	return nil
 }
 

@@ -405,8 +405,8 @@ func (f *contextFactory) updateContext(ctx *HookContext) (err error) {
 		info: statusInfo,
 	}
 
-	var machPortRanges map[names.UnitTag]network.GroupedPortRanges
-	var appPortRanges network.GroupedPortRanges
+	machPortRanges := make(map[names.UnitTag]network.GroupedPortRanges)
+	appPortRanges := make(network.GroupedPortRanges)
 	switch f.modelType {
 	case model.IAAS:
 		if machPortRanges, err = f.state.OpenedMachinePortRangesByEndpoint(f.machineTag); err != nil {

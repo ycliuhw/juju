@@ -272,12 +272,12 @@ type ContextNetworking interface {
 	PrivateAddress() (string, error)
 
 	// OpenPortRange marks the supplied port range for opening.
-	OpenPortRange(endpointName string, portRange network.PortRange) error
+	OpenPortRange(application bool, endpointName string, portRange network.PortRange) error
 
 	// ClosePortRange ensures the supplied port range is closed even when
 	// the executing unit's application is exposed (unless it is opened
 	// separately by a co-located unit).
-	ClosePortRange(endpointName string, portRange network.PortRange) error
+	ClosePortRange(application bool, endpointName string, portRange network.PortRange) error
 
 	// OpenedPortRanges returns all port ranges currently opened by this
 	// unit on its assigned machine grouped by endpoint name.

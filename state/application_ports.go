@@ -19,8 +19,11 @@ type applicationPortRangesDoc struct {
 	DocID           string                    `bson:"_id"`
 	ModelUUID       string                    `bson:"model-uuid"`
 	ApplicationName string                    `bson:"application-name"`
-	PortRanges      network.GroupedPortRanges `bson:"port-ranges"`
-	TxnRevno        int64                     `bson:"txn-revno"`
+	PortRanges      network.GroupedPortRanges `bson:"port-ranges"` // Diasable for now until we wannt to support application level ports.
+
+	UnitRanges map[string]network.GroupedPortRanges `bson:"unit-port-ranges"`
+
+	TxnRevno int64 `bson:"txn-revno"`
 }
 
 func newApplicationPortRangesDoc(docID, modelUUID, appName string, pgs network.GroupedPortRanges) applicationPortRangesDoc {

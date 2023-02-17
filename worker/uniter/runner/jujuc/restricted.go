@@ -111,12 +111,12 @@ func (*RestrictedContext) PublicAddress() (string, error) { return "", ErrRestri
 func (*RestrictedContext) PrivateAddress() (string, error) { return "", ErrRestrictedContext }
 
 // OpenPortRange implements hooks.Context.
-func (*RestrictedContext) OpenPortRange(string, network.PortRange) error {
+func (*RestrictedContext) OpenPortRange(bool, string, network.PortRange) error {
 	return ErrRestrictedContext
 }
 
 // ClosePortRange implements hooks.Context.
-func (*RestrictedContext) ClosePortRange(string, network.PortRange) error {
+func (*RestrictedContext) ClosePortRange(bool, string, network.PortRange) error {
 	return ErrRestrictedContext
 }
 

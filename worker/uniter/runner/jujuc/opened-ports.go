@@ -19,7 +19,8 @@ import (
 // OpenedPortsCommand implements the opened-ports command.
 type OpenedPortsCommand struct {
 	cmd.CommandBase
-	ctx           Context
+	ctx Context
+
 	showEndpoints bool
 	out           cmd.Output
 }
@@ -35,13 +36,13 @@ func (c *OpenedPortsCommand) Info() *cmd.Info {
 		Doc: `
 opened-ports lists all ports or port ranges opened by a unit.
 
-By default, the port range listing does not include information about the 
+By default, the port range listing does not include information about the
 application endpoints that each port range applies to. Each list entry is
-formatted as <port>/<protocol> (e.g. "80/tcp") or <from>-<to>/<protocol> 
+formatted as <port>/<protocol> (e.g. "80/tcp") or <from>-<to>/<protocol>
 (e.g. "8080-8088/udp").
 
 If the --endpoints option is specified, each entry in the port list will be
-augmented with a comma-delimited list of endpoints that the port range 
+augmented with a comma-delimited list of endpoints that the port range
 applies to (e.g. "80/tcp (endpoint1, endpoint2)"). If a port range applies to
 all endpoints, this will be indicated by the presence of a '*' character
 (e.g. "80/tcp (*)").
