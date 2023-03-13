@@ -169,6 +169,7 @@ func (st *State) updateExistingUser(u *User, displayName, password, creator stri
 			}},
 		)
 	}
+
 	// remove previous controller permissions
 	removeControllerOps := removeControllerUserOps(st.ControllerUUID(), u.UserTag())
 
@@ -190,7 +191,6 @@ func (st *State) updateExistingUser(u *User, displayName, password, creator stri
 		Assert: txn.DocExists,
 		Update: updateUser,
 	}}
-	// updateUserOps = append(updateUserOps, removeControllerOps...)
 	updateUserOps = append(updateUserOps, createControllerOps...)
 
 	if err := u.st.db().RunTransaction(updateUserOps); err != nil {
