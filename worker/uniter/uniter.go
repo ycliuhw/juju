@@ -119,13 +119,17 @@ type Uniter struct {
 
 	hookLock machinelock.Lock
 
-	// secretRotateWatcherFunc returns a watcher that triggers when secrets
+	// secretRotateWorkerFunc returns a watcher that triggers when secrets
 	// owned by this unit ot its application should be rotated.
-	secretRotateWatcherFunc remotestate.SecretTriggerWatcherFunc
+	secretRotateWorkerFunc remotestate.SecretTriggerWorkerFunc
 
-	// secretExpiryWatcherFunc returns a watcher that triggers when
+	// secretExpiryWorkerFunc returns a watcher that triggers when
 	// secret revisions owned by this unit or its application should be expired.
-	secretExpiryWatcherFunc remotestate.SecretTriggerWatcherFunc
+	secretExpiryWorkerFunc remotestate.SecretTriggerWorkerFunc
+
+	// secretMigrationMinionWorkerFunc returns a watcher that triggers when
+	// secrets owned by this unit or its application should be migrated.
+	secretMigrationMinionWorkerFunc remotestate.SecretMigrationMinionWorkerFunc
 
 	Probe Probe
 
@@ -186,34 +190,35 @@ type Uniter struct {
 
 // UniterParams hold all the necessary parameters for a new Uniter.
 type UniterParams struct {
-	UniterFacade                  *uniter.State
-	ResourcesFacade               *uniter.ResourcesFacadeClient
-	PayloadFacade                 *uniter.PayloadFacadeClient
-	SecretsClient                 SecretsClient
-	SecretsBackendGetter          context.SecretsBackendGetter
-	UnitTag                       names.UnitTag
-	ModelType                     model.ModelType
-	LeadershipTrackerFunc         func(names.UnitTag) leadership.TrackerWorker
-	SecretRotateWatcherFunc       remotestate.SecretTriggerWatcherFunc
-	SecretExpiryWatcherFunc       remotestate.SecretTriggerWatcherFunc
-	DataDir                       string
-	Downloader                    charm.Downloader
-	MachineLock                   machinelock.Lock
-	CharmDirGuard                 fortress.Guard
-	UpdateStatusSignal            remotestate.UpdateStatusTimerFunc
-	HookRetryStrategy             params.RetryStrategy
-	NewOperationExecutor          NewOperationExecutorFunc
-	NewProcessRunner              runner.NewRunnerFunc
-	NewDeployer                   charm.NewDeployerFunc
-	NewRemoteRunnerExecutor       NewRunnerExecutorFunc
-	RemoteInitFunc                RemoteInitFunc
-	RunListener                   *RunListener
-	TranslateResolverErr          func(error) error
-	Clock                         clock.Clock
-	ContainerRunningStatusChannel watcher.NotifyChannel
-	ContainerRunningStatusFunc    remotestate.ContainerRunningStatusFunc
-	IsRemoteUnit                  bool
-	SocketConfig                  *SocketConfig
+	UniterFacade                    *uniter.State
+	ResourcesFacade                 *uniter.ResourcesFacadeClient
+	PayloadFacade                   *uniter.PayloadFacadeClient
+	SecretsClient                   SecretsClient
+	SecretsBackendGetter            context.SecretsBackendGetter
+	UnitTag                         names.UnitTag
+	ModelType                       model.ModelType
+	LeadershipTrackerFunc           func(names.UnitTag) leadership.TrackerWorker
+	SecretRotateWorkerFunc          remotestate.SecretTriggerWorkerFunc
+	SecretExpiryWorkerFunc          remotestate.SecretTriggerWorkerFunc
+	SecretMigrationMinionWorkerFunc remotestate.SecretMigrationMinionWorkerFunc
+	DataDir                         string
+	Downloader                      charm.Downloader
+	MachineLock                     machinelock.Lock
+	CharmDirGuard                   fortress.Guard
+	UpdateStatusSignal              remotestate.UpdateStatusTimerFunc
+	HookRetryStrategy               params.RetryStrategy
+	NewOperationExecutor            NewOperationExecutorFunc
+	NewProcessRunner                runner.NewRunnerFunc
+	NewDeployer                     charm.NewDeployerFunc
+	NewRemoteRunnerExecutor         NewRunnerExecutorFunc
+	RemoteInitFunc                  RemoteInitFunc
+	RunListener                     *RunListener
+	TranslateResolverErr            func(error) error
+	Clock                           clock.Clock
+	ContainerRunningStatusChannel   watcher.NotifyChannel
+	ContainerRunningStatusFunc      remotestate.ContainerRunningStatusFunc
+	IsRemoteUnit                    bool
+	SocketConfig                    *SocketConfig
 	// TODO (mattyw, wallyworld, fwereade) Having the observer here make this approach a bit more legitimate, but it isn't.
 	// the observer is only a stop gap to be used in tests. A better approach would be to have the uniter tests start hooks
 	// that write to files, and have the tests watch the output to know that hooks have finished.
@@ -263,40 +268,41 @@ func newUniter(uniterParams *UniterParams) func() (worker.Worker, error) {
 	}
 	startFunc := func() (worker.Worker, error) {
 		u := &Uniter{
-			st:                            uniterParams.UniterFacade,
-			resources:                     uniterParams.ResourcesFacade,
-			payloads:                      uniterParams.PayloadFacade,
-			secretsClient:                 uniterParams.SecretsClient,
-			secretsBackendGetter:          uniterParams.SecretsBackendGetter,
-			paths:                         NewPaths(uniterParams.DataDir, uniterParams.UnitTag, uniterParams.SocketConfig),
-			modelType:                     uniterParams.ModelType,
-			hookLock:                      uniterParams.MachineLock,
-			leadershipTracker:             uniterParams.LeadershipTrackerFunc(uniterParams.UnitTag),
-			secretRotateWatcherFunc:       uniterParams.SecretRotateWatcherFunc,
-			secretExpiryWatcherFunc:       uniterParams.SecretExpiryWatcherFunc,
-			charmDirGuard:                 uniterParams.CharmDirGuard,
-			updateStatusAt:                uniterParams.UpdateStatusSignal,
-			hookRetryStrategy:             uniterParams.HookRetryStrategy,
-			newOperationExecutor:          uniterParams.NewOperationExecutor,
-			newProcessRunner:              uniterParams.NewProcessRunner,
-			newDeployer:                   uniterParams.NewDeployer,
-			newRemoteRunnerExecutor:       uniterParams.NewRemoteRunnerExecutor,
-			remoteInitFunc:                uniterParams.RemoteInitFunc,
-			translateResolverErr:          translateResolverErr,
-			observer:                      uniterParams.Observer,
-			clock:                         uniterParams.Clock,
-			downloader:                    uniterParams.Downloader,
-			containerRunningStatusChannel: uniterParams.ContainerRunningStatusChannel,
-			containerRunningStatusFunc:    uniterParams.ContainerRunningStatusFunc,
-			isRemoteUnit:                  uniterParams.IsRemoteUnit,
-			runListener:                   uniterParams.RunListener,
-			rebootQuerier:                 uniterParams.RebootQuerier,
-			logger:                        uniterParams.Logger,
-			sidecar:                       uniterParams.Sidecar,
-			enforcedCharmModifiedVersion:  uniterParams.EnforcedCharmModifiedVersion,
-			containerNames:                uniterParams.ContainerNames,
-			newPebbleClient:               uniterParams.NewPebbleClient,
-			shutdownChannel:               make(chan bool, 1),
+			st:                              uniterParams.UniterFacade,
+			resources:                       uniterParams.ResourcesFacade,
+			payloads:                        uniterParams.PayloadFacade,
+			secretsClient:                   uniterParams.SecretsClient,
+			secretsBackendGetter:            uniterParams.SecretsBackendGetter,
+			paths:                           NewPaths(uniterParams.DataDir, uniterParams.UnitTag, uniterParams.SocketConfig),
+			modelType:                       uniterParams.ModelType,
+			hookLock:                        uniterParams.MachineLock,
+			leadershipTracker:               uniterParams.LeadershipTrackerFunc(uniterParams.UnitTag),
+			secretRotateWorkerFunc:          uniterParams.SecretRotateWorkerFunc,
+			secretExpiryWorkerFunc:          uniterParams.SecretExpiryWorkerFunc,
+			secretMigrationMinionWorkerFunc: uniterParams.SecretMigrationMinionWorkerFunc,
+			charmDirGuard:                   uniterParams.CharmDirGuard,
+			updateStatusAt:                  uniterParams.UpdateStatusSignal,
+			hookRetryStrategy:               uniterParams.HookRetryStrategy,
+			newOperationExecutor:            uniterParams.NewOperationExecutor,
+			newProcessRunner:                uniterParams.NewProcessRunner,
+			newDeployer:                     uniterParams.NewDeployer,
+			newRemoteRunnerExecutor:         uniterParams.NewRemoteRunnerExecutor,
+			remoteInitFunc:                  uniterParams.RemoteInitFunc,
+			translateResolverErr:            translateResolverErr,
+			observer:                        uniterParams.Observer,
+			clock:                           uniterParams.Clock,
+			downloader:                      uniterParams.Downloader,
+			containerRunningStatusChannel:   uniterParams.ContainerRunningStatusChannel,
+			containerRunningStatusFunc:      uniterParams.ContainerRunningStatusFunc,
+			isRemoteUnit:                    uniterParams.IsRemoteUnit,
+			runListener:                     uniterParams.RunListener,
+			rebootQuerier:                   uniterParams.RebootQuerier,
+			logger:                          uniterParams.Logger,
+			sidecar:                         uniterParams.Sidecar,
+			enforcedCharmModifiedVersion:    uniterParams.EnforcedCharmModifiedVersion,
+			containerNames:                  uniterParams.ContainerNames,
+			newPebbleClient:                 uniterParams.NewPebbleClient,
+			shutdownChannel:                 make(chan bool, 1),
 		}
 		plan := catacomb.Plan{
 			Site: &u.catacomb,
@@ -402,25 +408,26 @@ func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 		var err error
 		watcher, err = remotestate.NewWatcher(
 			remotestate.WatcherConfig{
-				State:                         remotestate.NewAPIState(u.st),
-				LeadershipTracker:             u.leadershipTracker,
-				SecretsClient:                 u.secretsClient,
-				SecretRotateWatcherFunc:       u.secretRotateWatcherFunc,
-				SecretExpiryWatcherFunc:       u.secretExpiryWatcherFunc,
-				UnitTag:                       unitTag,
-				UpdateStatusChannel:           u.updateStatusAt,
-				CommandChannel:                u.commandChannel,
-				RetryHookChannel:              retryHookChan,
-				ContainerRunningStatusChannel: u.containerRunningStatusChannel,
-				ContainerRunningStatusFunc:    u.containerRunningStatusFunc,
-				ModelType:                     u.modelType,
-				Logger:                        u.logger.Child("remotestate"),
-				CanApplyCharmProfile:          canApplyCharmProfile,
-				Sidecar:                       u.sidecar,
-				EnforcedCharmModifiedVersion:  u.enforcedCharmModifiedVersion,
-				WorkloadEventChannel:          u.workloadEventChannel,
-				InitialWorkloadEventIDs:       u.workloadEvents.EventIDs(),
-				ShutdownChannel:               u.shutdownChannel,
+				State:                           remotestate.NewAPIState(u.st),
+				LeadershipTracker:               u.leadershipTracker,
+				SecretsClient:                   u.secretsClient,
+				SecretRotateWorkerFunc:          u.secretRotateWorkerFunc,
+				SecretExpiryWorkerFunc:          u.secretExpiryWorkerFunc,
+				SecretMigrationMinionWorkerFunc: u.secretMigrationMinionWorkerFunc,
+				UnitTag:                         unitTag,
+				UpdateStatusChannel:             u.updateStatusAt,
+				CommandChannel:                  u.commandChannel,
+				RetryHookChannel:                retryHookChan,
+				ContainerRunningStatusChannel:   u.containerRunningStatusChannel,
+				ContainerRunningStatusFunc:      u.containerRunningStatusFunc,
+				ModelType:                       u.modelType,
+				Logger:                          u.logger.Child("remotestate"),
+				CanApplyCharmProfile:            canApplyCharmProfile,
+				Sidecar:                         u.sidecar,
+				EnforcedCharmModifiedVersion:    u.enforcedCharmModifiedVersion,
+				WorkloadEventChannel:            u.workloadEventChannel,
+				InitialWorkloadEventIDs:         u.workloadEvents.EventIDs(),
+				ShutdownChannel:                 u.shutdownChannel,
 			})
 		if err != nil {
 			return errors.Trace(err)

@@ -39,8 +39,11 @@ type Logger interface {
 	Criticalf(string, ...interface{})
 }
 
-// SecretTriggerWatcherFunc is a function returning a secrets trigger watcher.
-type SecretTriggerWatcherFunc func(names.UnitTag, bool, chan []string) (worker.Worker, error)
+// SecretTriggerWorkerFunc is a function returning a secrets trigger worker.
+type SecretTriggerWorkerFunc func(names.UnitTag, bool, chan []string) (worker.Worker, error)
+
+// SecretMigrationMinionWorkerFunc is a function returning a secrets migration minion worker.
+type SecretMigrationMinionWorkerFunc func(unitTag names.UnitTag, isLeader bool) (worker.Worker, error)
 
 // SecretsClient provides access to the secrets manager facade.
 type SecretsClient interface {
@@ -75,16 +78,18 @@ type RemoteStateWatcher struct {
 	workloadEventChannel          <-chan string
 	shutdownChannel               <-chan bool
 
-	secretsClient  SecretsClient
-	secretsChanges chan []string
+	secretsClient SecretsClient
 
-	secretRotateWatcherFunc SecretTriggerWatcherFunc
-	secretRotateWatcher     worker.Worker
-	rotateSecretsChanges    chan []string
+	secretRotateWorkerFunc SecretTriggerWorkerFunc
+	secretRotateWorker     worker.Worker
+	rotateSecretsChanges   chan []string
 
-	secretExpiryWatcherFunc SecretTriggerWatcherFunc
-	secretExpiryWatcher     worker.Worker
-	expireSecretsChanges    chan []string
+	secretExpiryWorkerFunc SecretTriggerWorkerFunc
+	secretExpiryWatcher    worker.Worker
+	expireSecretsChanges   chan []string
+
+	secretMigrationMinionWorkerFunc SecretMigrationMinionWorkerFunc
+	secretMigrationMinionWorker     worker.Worker
 
 	obsoleteRevisionWatcher worker.Worker
 	obsoleteRevisionChanges watcher.StringsChannel
@@ -111,25 +116,26 @@ type ContainerRunningStatusFunc func(providerID string) (*ContainerRunningStatus
 // WatcherConfig holds configuration parameters for the
 // remote state watcher.
 type WatcherConfig struct {
-	State                         State
-	LeadershipTracker             leadership.Tracker
-	SecretRotateWatcherFunc       SecretTriggerWatcherFunc
-	SecretExpiryWatcherFunc       SecretTriggerWatcherFunc
-	SecretsClient                 SecretsClient
-	UpdateStatusChannel           UpdateStatusTimerFunc
-	CommandChannel                <-chan string
-	RetryHookChannel              watcher.NotifyChannel
-	ContainerRunningStatusChannel watcher.NotifyChannel
-	ContainerRunningStatusFunc    ContainerRunningStatusFunc
-	UnitTag                       names.UnitTag
-	ModelType                     model.ModelType
-	Sidecar                       bool
-	EnforcedCharmModifiedVersion  int
-	Logger                        Logger
-	CanApplyCharmProfile          bool
-	WorkloadEventChannel          <-chan string
-	InitialWorkloadEventIDs       []string
-	ShutdownChannel               <-chan bool
+	State                           State
+	LeadershipTracker               leadership.Tracker
+	SecretRotateWorkerFunc          SecretTriggerWorkerFunc
+	SecretExpiryWorkerFunc          SecretTriggerWorkerFunc
+	SecretMigrationMinionWorkerFunc SecretMigrationMinionWorkerFunc
+	SecretsClient                   SecretsClient
+	UpdateStatusChannel             UpdateStatusTimerFunc
+	CommandChannel                  <-chan string
+	RetryHookChannel                watcher.NotifyChannel
+	ContainerRunningStatusChannel   watcher.NotifyChannel
+	ContainerRunningStatusFunc      ContainerRunningStatusFunc
+	UnitTag                         names.UnitTag
+	ModelType                       model.ModelType
+	Sidecar                         bool
+	EnforcedCharmModifiedVersion    int
+	Logger                          Logger
+	CanApplyCharmProfile            bool
+	WorkloadEventChannel            <-chan string
+	InitialWorkloadEventIDs         []string
+	ShutdownChannel                 <-chan bool
 }
 
 func (w WatcherConfig) validate() error {
@@ -156,23 +162,24 @@ func NewWatcher(config WatcherConfig) (*RemoteStateWatcher, error) {
 		return nil, errors.Trace(err)
 	}
 	w := &RemoteStateWatcher{
-		st:                            config.State,
-		relations:                     make(map[names.RelationTag]*wrappedRelationUnitsWatcher),
-		relationUnitsChanges:          make(chan relationUnitsChange),
-		storageAttachmentWatchers:     make(map[names.StorageTag]*storageAttachmentWatcher),
-		storageAttachmentChanges:      make(chan storageAttachmentChange),
-		leadershipTracker:             config.LeadershipTracker,
-		secretRotateWatcherFunc:       config.SecretRotateWatcherFunc,
-		secretExpiryWatcherFunc:       config.SecretExpiryWatcherFunc,
-		secretsClient:                 config.SecretsClient,
-		updateStatusChannel:           config.UpdateStatusChannel,
-		commandChannel:                config.CommandChannel,
-		retryHookChannel:              config.RetryHookChannel,
-		containerRunningStatusChannel: config.ContainerRunningStatusChannel,
-		containerRunningStatusFunc:    config.ContainerRunningStatusFunc,
-		modelType:                     config.ModelType,
-		logger:                        config.Logger,
-		canApplyCharmProfile:          config.CanApplyCharmProfile,
+		st:                              config.State,
+		relations:                       make(map[names.RelationTag]*wrappedRelationUnitsWatcher),
+		relationUnitsChanges:            make(chan relationUnitsChange),
+		storageAttachmentWatchers:       make(map[names.StorageTag]*storageAttachmentWatcher),
+		storageAttachmentChanges:        make(chan storageAttachmentChange),
+		leadershipTracker:               config.LeadershipTracker,
+		secretRotateWorkerFunc:          config.SecretRotateWorkerFunc,
+		secretExpiryWorkerFunc:          config.SecretExpiryWorkerFunc,
+		secretMigrationMinionWorkerFunc: config.SecretMigrationMinionWorkerFunc,
+		secretsClient:                   config.SecretsClient,
+		updateStatusChannel:             config.UpdateStatusChannel,
+		commandChannel:                  config.CommandChannel,
+		retryHookChannel:                config.RetryHookChannel,
+		containerRunningStatusChannel:   config.ContainerRunningStatusChannel,
+		containerRunningStatusFunc:      config.ContainerRunningStatusFunc,
+		modelType:                       config.ModelType,
+		logger:                          config.Logger,
+		canApplyCharmProfile:            config.CanApplyCharmProfile,
 		// Note: it is important that the out channel be buffered!
 		// The remote state watcher will perform a non-blocking send
 		// on the channel to wake up the observer. It is non-blocking
@@ -1067,12 +1074,17 @@ func (w *RemoteStateWatcher) leadershipChanged(isLeader bool) error {
 	defer w.mu.Unlock()
 
 	w.current.Leader = isLeader
-	if w.secretRotateWatcher != nil {
-		_ = worker.Stop(w.secretRotateWatcher)
+	if w.secretRotateWorker != nil {
+		_ = worker.Stop(w.secretRotateWorker)
+		w.secretRotateWorker = nil
 	}
-	w.secretRotateWatcher = nil
 	w.rotateSecretsChanges = nil
 	w.current.SecretRotations = nil
+
+	if w.secretMigrationMinionWorker != nil {
+		_ = worker.Stop(w.secretMigrationMinionWorker)
+		w.secretMigrationMinionWorker = nil
+	}
 
 	if w.secretExpiryWatcher != nil {
 		_ = worker.Stop(w.secretExpiryWatcher)
@@ -1091,20 +1103,27 @@ func (w *RemoteStateWatcher) leadershipChanged(isLeader bool) error {
 	// block the upstream worker.
 	w.rotateSecretsChanges = make(chan []string, 100)
 	w.logger.Debugf("starting secrets rotation watcher")
-	rotateWatcher, err := w.secretRotateWatcherFunc(w.unit.Tag(), isLeader, w.rotateSecretsChanges)
+	rotateWatcher, err := w.secretRotateWorkerFunc(w.unit.Tag(), isLeader, w.rotateSecretsChanges)
 	if err != nil {
 		return errors.Trace(err)
 	}
 	if err := w.catacomb.Add(rotateWatcher); err != nil {
 		return errors.Trace(err)
 	}
-	w.secretRotateWatcher = rotateWatcher
+	w.secretRotateWorker = rotateWatcher
+
+	if w.secretMigrationMinionWorker, err = w.secretMigrationMinionWorkerFunc(w.unit.Tag(), isLeader); err != nil {
+		return errors.Trace(err)
+	}
+	if err := w.catacomb.Add(w.secretMigrationMinionWorker); err != nil {
+		return errors.Trace(err)
+	}
 
 	// Allow a generous buffer so a slow unit agent does not
 	// block the upstream worker.
 	w.expireSecretsChanges = make(chan []string, 100)
 	w.logger.Debugf("starting secret revisions expiry watcher")
-	expiryWatcher, err := w.secretExpiryWatcherFunc(w.unit.Tag(), isLeader, w.expireSecretsChanges)
+	expiryWatcher, err := w.secretExpiryWorkerFunc(w.unit.Tag(), isLeader, w.expireSecretsChanges)
 	if err != nil {
 		return errors.Trace(err)
 	}

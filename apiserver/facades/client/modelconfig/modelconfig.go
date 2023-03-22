@@ -14,6 +14,7 @@ import (
 	"github.com/juju/juju/core/series"
 	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/rpc/params"
+	secretsprovider "github.com/juju/juju/secrets/provider"
 	"github.com/juju/juju/state"
 )
 
@@ -350,7 +351,12 @@ func (c *ModelConfigAPI) checkSecretBackend() state.ValidateConfigFunc {
 		if backendName == "" {
 			return errors.NotValidf("empty %q config value", config.SecretBackendKey)
 		}
+		// You can only set the default secret backend to auto or external backend.
 		if backendName == config.DefaultSecretBackend {
+			return nil
+		}
+		if backendName == secretsprovider.Internal {
+			// This is for testing, REMOVE me later!!!
 			return nil
 		}
 		return c.backend.GetSecretBackend(backendName)

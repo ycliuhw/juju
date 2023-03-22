@@ -2077,19 +2077,23 @@ func (a *Application) WatchCharmConfig() (NotifyWatcher, error) {
 
 // WatchSecretMigrationTasks returns a watcher for notifying the uniter when there
 // are any owned secrets need to be migrated to the new secret backend.
-func (a *Application) WatchSecretMigrationTasks() NotifyWatcher {
-	return newSecretMigrationTaskNotifyWatcher(a.st, a.Tag(), SecretMigrationTaskPending)
+func (a *Application) WatchSecretMigrationTasks() StringsWatcher {
+	// return newSecretMigrationTaskNotifyWatcher(a.st, a.Tag(), SecretMigrationTaskPending)
+	logger.Criticalf("Application.WatchSecretMigrationTasks %q", a.Tag())
+	return newSecretMigrationTaskStringWatcher(a.st, a.Tag(), SecretMigrationTaskPending)
 }
 
 // WatchSecretMigrationTasks returns a watcher for notifying the uniter when there
 // are any owned secrets need to be migrated to the new secret backend.
-func (u *Unit) WatchSecretMigrationTasks() NotifyWatcher {
-	return newSecretMigrationTaskNotifyWatcher(u.st, u.Tag(), SecretMigrationTaskPending)
+func (u *Unit) WatchSecretMigrationTasks() StringsWatcher {
+	// return newSecretMigrationTaskNotifyWatcher(u.st, u.Tag(), SecretMigrationTaskPending)
+	logger.Criticalf("Unit.WatchSecretMigrationTasks %q", u.Tag())
+	return newSecretMigrationTaskStringWatcher(u.st, u.Tag(), SecretMigrationTaskPending)
 }
 
 // WatchForFailedSecretMigrationTasks returns a watcher for notifying the worker if there are any secret migration tasks' status changed to failed.
 func (m *Model) WatchForFailedSecretMigrationTasks() StringsWatcher {
-	return newSecretMigrationTaskStringWatcher(m.st, nil, SecretMigrationTaskFailed, SecretMigrationTaskFailed)
+	return newSecretMigrationTaskStringWatcher(m.st, nil, SecretMigrationTaskFailed)
 }
 
 // WatchForCompletedSecretMigrationTasks returns a watcher for notifying the worker if there are any secret migration tasks' status changed to  completed.
@@ -2097,17 +2101,23 @@ func (m *Model) WatchForCompletedSecretMigrationTasks() StringsWatcher {
 	return newSecretMigrationTaskStringWatcher(m.st, nil, SecretMigrationTaskFailed, SecretMigrationTaskCompleted)
 }
 
-func secretMigrationTasksFitler(
+func secretMigrationTasksFilter(
 	st *State, ownerTag names.Tag, statuses ...SecretMigrationTaskStatus,
 ) func(id interface{}) bool {
-	return func(id interface{}) bool {
+	return func(id interface{}) (out bool) {
+		defer func() {
+			logger.Criticalf("secretMigrationTasksFilter %q, %v", id, out)
+		}()
 		secretMigrationTaskCol, closer := st.db().GetCollection(secretMigrationTasksC)
 		defer closer()
 
 		var doc secretMigrationTaskDoc
 		if err := secretMigrationTaskCol.FindId(id).One(&doc); err != nil {
+			logger.Errorf("cannot find secret migration task %v: %v", id, err)
 			return false
 		}
+		logger.Criticalf("secretMigrationTasksFilter doc %#v", doc)
+		logger.Criticalf("secretMigrationTasksFilter ownerTag %q, statuses %+v", ownerTag, statuses)
 		if ownerTag != nil && ownerTag.String() != doc.OwnerTag {
 			return false
 		}
@@ -2115,7 +2125,7 @@ func secretMigrationTasksFitler(
 			return true
 		}
 		for _, status := range statuses {
-			if status == SecretMigrationTaskStatus(doc.Status) {
+			if string(status) == doc.Status {
 				return true
 			}
 		}
@@ -2124,13 +2134,13 @@ func secretMigrationTasksFitler(
 }
 
 func newSecretMigrationTaskNotifyWatcher(st *State, ownerTag names.Tag, statuses ...SecretMigrationTaskStatus) NotifyWatcher {
-	filter := secretMigrationTasksFitler(st, ownerTag, statuses...)
-	return newNotifyCollWatcher(st, secretMetadataC, filter)
+	filter := secretMigrationTasksFilter(st, ownerTag, statuses...)
+	return newNotifyCollWatcher(st, secretMigrationTasksC, filter)
 }
 
 func newSecretMigrationTaskStringWatcher(st *State, ownerTag names.Tag, statuses ...SecretMigrationTaskStatus) StringsWatcher {
 	return newCollectionWatcher(st, colWCfg{
-		col: secretMetadataC, filter: secretMigrationTasksFitler(st, ownerTag, statuses...),
+		col: secretMigrationTasksC, filter: secretMigrationTasksFilter(st, ownerTag, statuses...),
 	})
 }
 
@@ -2972,6 +2982,8 @@ func (w *collectionWatcher) Changes() <-chan []string {
 // loop performs the main event loop cycle, polling for changes and
 // responding to Changes requests
 func (w *collectionWatcher) loop() error {
+	logger.Criticalf("starting collection watcher for %q", w.col)
+	isSecretTask := w.col == secretMigrationTasksC
 	var (
 		changes []string
 		in      = (<-chan watcher.Change)(w.source)
@@ -2985,6 +2997,9 @@ func (w *collectionWatcher) loop() error {
 	if err != nil {
 		return err
 	}
+	if isSecretTask {
+		logger.Criticalf("later collection watcher for %q, changes %+v", w.col, changes)
+	}
 
 	for {
 		select {
@@ -2993,7 +3008,13 @@ func (w *collectionWatcher) loop() error {
 		case <-w.watcher.Dead():
 			return stateWatcherDeadError(w.watcher.Err())
 		case ch := <-in:
+			if isSecretTask {
+				logger.Criticalf("later collection watcher for %q: %v", w.col, ch)
+			}
 			updates, ok := collectWhereRevnoGreaterThan(ch, in, w.tomb.Dying(), w.colWCfg.revnoThreshold)
+			if isSecretTask {
+				logger.Criticalf("later collection watcher for %q, updates %+v", w.col, updates)
+			}
 			if !ok {
 				return tomb.ErrDying
 			}

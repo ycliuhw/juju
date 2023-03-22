@@ -6,9 +6,11 @@ package state
 import (
 	"strconv"
 
+	"github.com/juju/collections/set"
 	"github.com/juju/errors"
 	"github.com/juju/mgo/v3/bson"
 	"github.com/juju/mgo/v3/txn"
+	"github.com/kr/pretty"
 
 	"github.com/juju/juju/mongo"
 )
@@ -54,32 +56,49 @@ type secretMigrationTaskDoc struct {
 // ScheduleSecretMigrationTasks creates a secret migration task for each secret owner when the model's secret backend changed.
 func (m *Model) ScheduleSecretMigrationTasks() error {
 	logger.Criticalf("ScheduleSecretMigrationTasks called for model %q", m.UUID())
-	col, closer := m.st.db().GetCollection(secretMigrationTasksC)
+	secretMetadataCol, closer := m.st.db().GetCollection(secretMetadataC)
 	defer closer()
 
-	var docs []secretMetadataDoc
-	err := col.Find(bson.D{}).Select(bson.D{{"owner-tag", 1}}).Distinct("owner-tag", &docs)
+	var ownerTags []string
+	err := secretMetadataCol.Find(nil).Distinct("owner-tag", &ownerTags)
 	if err != nil {
 		return errors.Trace(err)
 	}
-	var ops []txn.Op
-	for _, doc := range docs {
-		id, err := sequenceWithMin(m.st, "secretMigrationTask", 1)
-		if err != nil {
-			return errors.Trace(err)
-		}
-		taskId := strconv.Itoa(id)
-		ops = append(ops, txn.Op{
-			C:  secretMigrationTasksC,
-			Id: taskId,
-			Insert: &secretMigrationTaskDoc{
-				DocID:    m.st.docID(taskId),
-				OwnerTag: doc.OwnerTag,
-				Status:   string(SecretMigrationTaskPending),
-			},
-		})
+	ownerTagsSet := set.NewStrings(ownerTags...)
+	logger.Criticalf("ScheduleSecretMigrationTasks secretMetadataC found %s", pretty.Sprint(ownerTags))
+
+	secretMigrationTasksCol, closer := m.st.db().GetCollection(secretMigrationTasksC)
+	defer closer()
+
+	var alreadyScheduled []string
+	err = secretMigrationTasksCol.Find(nil).Distinct("owner-tag", &alreadyScheduled)
+	if err != nil {
+		return errors.Trace(err)
 	}
+	logger.Criticalf("ScheduleSecretMigrationTasks secretMigrationTasksC found %s", pretty.Sprint(alreadyScheduled))
+	for _, tag := range alreadyScheduled {
+		ownerTagsSet.Remove(tag)
+	}
+
 	buildTxn := func(attempt int) ([]txn.Op, error) {
+		var ops []txn.Op
+		for _, ownerTag := range ownerTagsSet.Values() {
+			id, err := sequenceWithMin(m.st, "secretMigrationTask", 1)
+			if err != nil {
+				return nil, errors.Trace(err)
+			}
+			taskId := strconv.Itoa(id)
+			ops = append(ops, txn.Op{
+				C:  secretMigrationTasksC,
+				Id: taskId,
+				Insert: &secretMigrationTaskDoc{
+					DocID:    m.st.docID(taskId),
+					OwnerTag: ownerTag,
+					Status:   string(SecretMigrationTaskPending),
+				},
+			})
+		}
+		logger.Criticalf("ScheduleSecretMigrationTasks secretMigrationTasksC ops %s", pretty.Sprint(ops))
 		return ops, nil
 	}
 	err = m.st.db().Run(buildTxn)

@@ -66,7 +66,7 @@ func (cfg ManifoldConfig) start(context dependency.Context) (worker.Worker, erro
 	if !ok {
 		return nil, errors.New("API connection is controller-only (should never happen)")
 	}
-	facade, err := secretmigrationmanager.NewClient(apiCaller)
+	facade, err := cfg.NewFacade(apiCaller)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

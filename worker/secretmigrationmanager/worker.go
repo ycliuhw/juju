@@ -5,6 +5,7 @@ package secretmigrationmanager
 
 import (
 	// "fmt"
+	"time"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
@@ -155,6 +156,8 @@ func (w *Worker) loop() (err error) {
 	if err := w.catacomb.Add(completedTaskWatcher); err != nil {
 		return errors.Trace(err)
 	}
+
+	var timeToProcessFailedTasks <-chan time.Time
 	for {
 		select {
 		case <-w.catacomb.Dying():
@@ -163,11 +166,14 @@ func (w *Worker) loop() (err error) {
 			if !ok {
 				return errors.New("model configuration watch closed")
 			}
-			if hasChanged, err := w.hasSecretBackendChanged(); err != nil {
+			changed, err := w.hasSecretBackendChanged()
+			if err != nil {
 				return errors.Trace(err)
-			} else if !hasChanged {
+			}
+			if !changed {
 				continue
 			}
+			w.config.Logger.Criticalf("secret backend has changed, now scheduling secret migration tasks!!!")
 			if err := w.config.Facade.ScheduleSecretMigrationTasks(); err != nil {
 				return errors.Trace(err)
 			}
@@ -175,10 +181,19 @@ func (w *Worker) loop() (err error) {
 			if !ok {
 				return errors.New("failed secret migration task watch closed")
 			}
+			//
 			w.config.Logger.Criticalf("failed secret migration tasks: %+v", failed)
+			if timeToProcessFailedTasks == nil {
+				timeToProcessFailedTasks = w.config.Clock.NewTimer(5 * time.Second).Chan()
+			}
+		case <-timeToProcessFailedTasks:
+			w.config.Logger.Criticalf("time to process failed secret migration tasks!!!")
 			// if err := w.config.Facade.ReScheduleSecretMigrationTasks(); err != nil {
 			// 	return errors.Trace(err)
 			// }
+			// _ = timeToProcessFailedTasks.Stop()
+			timeToProcessFailedTasks = nil
+
 		case completed, ok := <-completedTaskWatcher.Changes():
 			if !ok {
 				return errors.New("completed secret migration task watch closed")

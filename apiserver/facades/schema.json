@@ -40167,6 +40167,18 @@
                     },
                     "description": "WatchObsolete returns a watcher for notifying when:\n  - a secret owned by the entity is deleted\n  - a secret revision owed by the entity no longer\n    has any consumers\n\nObsolete revisions results are \"uri/revno\" and deleted\nsecret results are \"uri\"."
                 },
+                "WatchSecretMigrationTasks": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/Entities"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/StringsWatchResults"
+                        }
+                    },
+                    "description": "WatchSecretMigrationTasks sets up a watcher to notify of changes to secret migration tasks.\nNote: leader unit should login using application tag to watch for application secrets."
+                },
                 "WatchSecretRevisionsExpiryChanges": {
                     "type": "object",
                     "properties": {
@@ -46677,6 +46689,18 @@
                         }
                     },
                     "description": "WatchRelationUnits returns a RelationUnitsWatcher for observing\nchanges to every unit in the supplied relation that is visible to\nthe supplied unit. See also state/watcher.go:RelationUnit.Watch()."
+                },
+                "WatchSecretMigrationTasks": {
+                    "type": "object",
+                    "properties": {
+                        "Params": {
+                            "$ref": "#/definitions/Entities"
+                        },
+                        "Result": {
+                            "$ref": "#/definitions/StringsWatchResults"
+                        }
+                    },
+                    "description": "WatchSecretMigrationTasks sets up a watcher to notify of changes to secret migration tasks.\nNote: leader unit should login using application tag to watch for application secrets."
                 },
                 "WatchSecretRevisionsExpiryChanges": {
                     "type": "object",

@@ -53,6 +53,8 @@ type SecretsManagerAPI struct {
 	backendConfigGetter commonsecrets.BackendConfigGetter
 	adminConfigGetter   commonsecrets.BackendAdminConfigGetter
 	remoteClientGetter  func(uri *coresecrets.URI) (CrossModelSecretsClient, error)
+	// TODO: move to new facade.
+	st State
 
 	crossModelState CrossModelState
 }
@@ -979,6 +981,83 @@ func (s *SecretsManagerAPI) WatchSecretRevisionsExpiryChanges(args params.Entiti
 		result.Error = apiservererrors.ServerError(err)
 	}
 	return result, nil
+}
+
+// WatchSecretMigrationTasks sets up a watcher to notify of changes to secret migration tasks.
+// Note: leader unit should login using application tag to watch for application secrets.
+func (s *SecretsManagerAPI) WatchSecretMigrationTasks(args params.Entities) (params.StringsWatchResults, error) {
+	results := params.StringsWatchResults{
+		Results: make([]params.StringsWatchResult, len(args.Entities)),
+	}
+	for i, arg := range args.Entities {
+		logger.Criticalf("WatchSecretMigrationTasks arg.Tag %q", arg.Tag)
+		ownerTag, err := names.ParseTag(arg.Tag)
+		logger.Criticalf("WatchSecretMigrationTasks ownerTag %q", ownerTag)
+		if err != nil {
+			results.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+
+		var api SecretMigrationTasksWatcherAPI
+		switch tag := ownerTag.(type) {
+		case names.UnitTag:
+			logger.Criticalf("WatchSecretMigrationTasks names.UnitTag tag %q, %q", tag, s.authTag.Id())
+			if s.authTag.Id() != tag.Id() {
+				results.Results[i].Error = apiservererrors.ServerError(err)
+				continue
+			}
+			api, err = s.st.Unit(tag.Id())
+		case names.ApplicationTag:
+			logger.Criticalf("WatchSecretMigrationTasks names.ApplicationTag tag %q", tag)
+			if !s.isSameApplication(ownerTag) {
+				results.Results[i].Error = apiservererrors.ServerError(err)
+				continue
+			}
+			var token leadership.Token
+			token, err = s.leadershipToken()
+			if err != nil {
+				results.Results[i].Error = apiservererrors.ServerError(err)
+				continue
+			}
+			if token.Check() != nil {
+				results.Results[i].Error = apiservererrors.ServerError(err)
+				continue
+			}
+			api, err = s.st.Application(tag.Id())
+		default:
+			err = apiservererrors.ErrPerm
+		}
+		if err != nil {
+			results.Results[i].Error = apiservererrors.ServerError(err)
+			continue
+		}
+
+		w := api.WatchSecretMigrationTasks()
+		if changes, ok := <-w.Changes(); ok {
+			results.Results[i] = params.StringsWatchResult{
+				StringsWatcherId: s.resources.Register(w),
+				Changes:          changes,
+			}
+		} else {
+			results.Results[i].Error = apiservererrors.ServerError(watcher.EnsureErr(w))
+		}
+	}
+	return results, nil
+}
+
+func (s *SecretsManagerAPI) StartSecretMigrationTask(id string) error {
+	logger.Criticalf("StartSecretMigrationTask called with id %q", id)
+	return nil
+}
+
+func (s *SecretsManagerAPI) FailSecretMigrationTask(id string) error {
+	logger.Criticalf("FailSecretMigrationTask called with id %q", id)
+	return nil
+}
+
+func (s *SecretsManagerAPI) CompleteSecretMigrationTask(id string) error {
+	logger.Criticalf("CompleteSecretMigrationTask called with id %q", id)
+	return nil
 }
 
 type grantRevokeFunc func(*coresecrets.URI, state.SecretAccessParams) error

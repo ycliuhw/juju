@@ -34,6 +34,7 @@ import (
 	"github.com/juju/juju/worker/fortress"
 	"github.com/juju/juju/worker/leadership"
 	"github.com/juju/juju/worker/secretexpire"
+	"github.com/juju/juju/worker/secretmigrationminion"
 	"github.com/juju/juju/worker/secretrotate"
 	"github.com/juju/juju/worker/uniter"
 	"github.com/juju/juju/worker/uniter/charm"
@@ -204,7 +205,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			secretsBackendGetter := func() (secrets.BackendsClient, error) {
 				return secrets.NewClient(jujuSecretsAPI)
 			}
-			secretRotateWatcherFunc := func(unitTag names.UnitTag, isLeader bool, rotateSecrets chan []string) (worker.Worker, error) {
+			secretRotateWorkerFunc := func(unitTag names.UnitTag, isLeader bool, rotateSecrets chan []string) (worker.Worker, error) {
 				owners := []names.Tag{unitTag}
 				if isLeader {
 					appName, _ := names.UnitApplication(unitTag.Id())
@@ -218,7 +219,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 					RotateSecrets:       rotateSecrets,
 				})
 			}
-			secretExpiryWatcherFunc := func(unitTag names.UnitTag, isLeader bool, expireRevisions chan []string) (worker.Worker, error) {
+			secretExpiryWorkerFunc := func(unitTag names.UnitTag, isLeader bool, expireRevisions chan []string) (worker.Worker, error) {
 				owners := []names.Tag{unitTag}
 				if isLeader {
 					appName, _ := names.UnitApplication(unitTag.Id())
@@ -230,6 +231,16 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 					Logger:              config.Logger.Child("secretsexpire"),
 					SecretOwners:        owners,
 					ExpireRevisions:     expireRevisions,
+				})
+			}
+			secretMigrationMinionWorkerFunc := func(unitTag names.UnitTag, isLeader bool) (worker.Worker, error) {
+				return secretmigrationminion.NewWorker(secretmigrationminion.Config{
+					SecretManagerFacade:  jujuSecretsAPI,
+					Clock:                clock,
+					Logger:               config.Logger.Child("secretmigrationminion"),
+					IsLeader:             isLeader,
+					UnitTag:              unitTag,
+					SecretsBackendGetter: secretsBackendGetter,
 				})
 			}
 
@@ -270,21 +281,22 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			}
 			wCfg.OperatorInfo = *operatorInfo
 			wCfg.UniterParams = &uniter.UniterParams{
-				NewOperationExecutor:    operation.NewExecutor,
-				NewDeployer:             charm.NewDeployer,
-				NewProcessRunner:        runner.NewRunner,
-				DataDir:                 agentConfig.DataDir(),
-				Clock:                   clock,
-				MachineLock:             config.MachineLock,
-				CharmDirGuard:           charmDirGuard,
-				UpdateStatusSignal:      uniter.NewUpdateStatusTimer(),
-				HookRetryStrategy:       hookRetryStrategy,
-				TranslateResolverErr:    config.TranslateResolverErr,
-				SecretsClient:           jujuSecretsAPI,
-				SecretsBackendGetter:    secretsBackendGetter,
-				SecretRotateWatcherFunc: secretRotateWatcherFunc,
-				SecretExpiryWatcherFunc: secretExpiryWatcherFunc,
-				Logger:                  wCfg.Logger.Child("uniter"),
+				NewOperationExecutor:            operation.NewExecutor,
+				NewDeployer:                     charm.NewDeployer,
+				NewProcessRunner:                runner.NewRunner,
+				DataDir:                         agentConfig.DataDir(),
+				Clock:                           clock,
+				MachineLock:                     config.MachineLock,
+				CharmDirGuard:                   charmDirGuard,
+				UpdateStatusSignal:              uniter.NewUpdateStatusTimer(),
+				HookRetryStrategy:               hookRetryStrategy,
+				TranslateResolverErr:            config.TranslateResolverErr,
+				SecretsClient:                   jujuSecretsAPI,
+				SecretsBackendGetter:            secretsBackendGetter,
+				SecretRotateWorkerFunc:          secretRotateWorkerFunc,
+				SecretExpiryWorkerFunc:          secretExpiryWorkerFunc,
+				SecretMigrationMinionWorkerFunc: secretMigrationMinionWorkerFunc,
+				Logger:                          wCfg.Logger.Child("uniter"),
 			}
 			wCfg.UniterParams.SocketConfig, err = socketConfig(operatorInfo)
 			if err != nil {

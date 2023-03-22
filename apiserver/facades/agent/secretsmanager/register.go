@@ -90,5 +90,7 @@ func NewSecretManagerAPI(context facade.Context) (*SecretsManagerAPI, error) {
 		adminConfigGetter:   secretBackendAdminConfigGetter,
 		remoteClientGetter:  remoteClientGetter,
 		crossModelState:     context.State().RemoteEntities(),
+
+		st: &stateShim{context.State()},
 	}, nil
 }

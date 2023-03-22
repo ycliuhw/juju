@@ -7,10 +7,13 @@ import (
 	"context"
 
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 
 	"github.com/juju/juju/core/secrets"
 	"github.com/juju/juju/secrets/provider"
 )
+
+var logger = loggo.GetLogger("juju.secrets")
 
 // PermissionDenied is returned when an api fails due to a permission issue.
 const PermissionDenied = errors.ConstError("permission denied")
@@ -45,6 +48,8 @@ func NewClient(jujuAPI JujuAPIClient) (*secretsClient, error) {
 }
 
 func (c *secretsClient) getBackend(backendID *string) (provider.SecretsBackend, string, error) {
+	logger.Criticalf("secretsClient.getBackend(%v)", backendID)
+
 	info, err := c.jujuAPI.GetSecretBackendConfig(backendID)
 	if err != nil {
 		return nil, "", errors.Trace(err)

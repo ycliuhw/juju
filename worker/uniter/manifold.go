@@ -26,6 +26,7 @@ import (
 	"github.com/juju/juju/worker/fortress"
 	"github.com/juju/juju/worker/s3caller"
 	"github.com/juju/juju/worker/secretexpire"
+	"github.com/juju/juju/worker/secretmigrationminion"
 	"github.com/juju/juju/worker/secretrotate"
 	"github.com/juju/juju/worker/uniter/charm"
 	"github.com/juju/juju/worker/uniter/operation"
@@ -135,7 +136,11 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			s3Downloader := charms.NewS3CharmDownloader(s3Caller, apiConn)
 
 			jujuSecretsAPI := secretsmanager.NewClient(apiConn)
-			secretRotateWatcherFunc := func(unitTag names.UnitTag, isLeader bool, rotateSecrets chan []string) (worker.Worker, error) {
+			secretsBackendGetter := func() (secrets.BackendsClient, error) {
+				return secrets.NewClient(jujuSecretsAPI)
+			}
+
+			secretRotateWorkerFunc := func(unitTag names.UnitTag, isLeader bool, rotateSecrets chan []string) (worker.Worker, error) {
 				owners := []names.Tag{unitTag}
 				if isLeader {
 					appName, _ := names.UnitApplication(unitTag.Id())
@@ -149,7 +154,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 					RotateSecrets:       rotateSecrets,
 				})
 			}
-			secretExpiryWatcherFunc := func(unitTag names.UnitTag, isLeader bool, expireRevisions chan []string) (worker.Worker, error) {
+			secretExpiryWorkerFunc := func(unitTag names.UnitTag, isLeader bool, expireRevisions chan []string) (worker.Worker, error) {
 				owners := []names.Tag{unitTag}
 				if isLeader {
 					appName, _ := names.UnitApplication(unitTag.Id())
@@ -161,6 +166,16 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 					Logger:              config.Logger.Child("secretrevisionsexpire"),
 					SecretOwners:        owners,
 					ExpireRevisions:     expireRevisions,
+				})
+			}
+			secretMigrationMinionWorkerFunc := func(unitTag names.UnitTag, isLeader bool) (worker.Worker, error) {
+				return secretmigrationminion.NewWorker(secretmigrationminion.Config{
+					SecretManagerFacade:  jujuSecretsAPI,
+					Clock:                config.Clock,
+					Logger:               config.Logger.Child("secretmigrationminion"),
+					IsLeader:             isLeader,
+					UnitTag:              unitTag,
+					SecretsBackendGetter: secretsBackendGetter,
 				})
 			}
 
@@ -178,37 +193,34 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 			}
 			payloadFacade := uniter.NewPayloadFacadeClient(apiConn)
 
-			secretsBackendGetter := func() (secrets.BackendsClient, error) {
-				return secrets.NewClient(jujuSecretsAPI)
-			}
-
 			uniter, err := NewUniter(&UniterParams{
-				UniterFacade:                 uniter.NewState(apiConn, unitTag),
-				ResourcesFacade:              resourcesFacade,
-				PayloadFacade:                payloadFacade,
-				SecretsClient:                jujuSecretsAPI,
-				SecretsBackendGetter:         secretsBackendGetter,
-				UnitTag:                      unitTag,
-				ModelType:                    config.ModelType,
-				LeadershipTrackerFunc:        leadershipTrackerFunc,
-				SecretRotateWatcherFunc:      secretRotateWatcherFunc,
-				SecretExpiryWatcherFunc:      secretExpiryWatcherFunc,
-				DataDir:                      agentConfig.DataDir(),
-				Downloader:                   s3Downloader,
-				MachineLock:                  manifoldConfig.MachineLock,
-				CharmDirGuard:                charmDirGuard,
-				UpdateStatusSignal:           NewUpdateStatusTimer(),
-				HookRetryStrategy:            hookRetryStrategy,
-				NewOperationExecutor:         operation.NewExecutor,
-				NewDeployer:                  charm.NewDeployer,
-				NewProcessRunner:             runner.NewRunner,
-				TranslateResolverErr:         config.TranslateResolverErr,
-				Clock:                        manifoldConfig.Clock,
-				RebootQuerier:                reboot.NewMonitor(agentConfig.TransientDataDir()),
-				Logger:                       config.Logger,
-				Sidecar:                      config.Sidecar,
-				EnforcedCharmModifiedVersion: config.EnforcedCharmModifiedVersion,
-				ContainerNames:               config.ContainerNames,
+				UniterFacade:                    uniter.NewState(apiConn, unitTag),
+				ResourcesFacade:                 resourcesFacade,
+				PayloadFacade:                   payloadFacade,
+				SecretsClient:                   jujuSecretsAPI,
+				SecretsBackendGetter:            secretsBackendGetter,
+				UnitTag:                         unitTag,
+				ModelType:                       config.ModelType,
+				LeadershipTrackerFunc:           leadershipTrackerFunc,
+				SecretRotateWorkerFunc:          secretRotateWorkerFunc,
+				SecretExpiryWorkerFunc:          secretExpiryWorkerFunc,
+				SecretMigrationMinionWorkerFunc: secretMigrationMinionWorkerFunc,
+				DataDir:                         agentConfig.DataDir(),
+				Downloader:                      downloader,
+				MachineLock:                     manifoldConfig.MachineLock,
+				CharmDirGuard:                   charmDirGuard,
+				UpdateStatusSignal:              NewUpdateStatusTimer(),
+				HookRetryStrategy:               hookRetryStrategy,
+				NewOperationExecutor:            operation.NewExecutor,
+				NewDeployer:                     charm.NewDeployer,
+				NewProcessRunner:                runner.NewRunner,
+				TranslateResolverErr:            config.TranslateResolverErr,
+				Clock:                           manifoldConfig.Clock,
+				RebootQuerier:                   reboot.NewMonitor(agentConfig.TransientDataDir()),
+				Logger:                          config.Logger,
+				Sidecar:                         config.Sidecar,
+				EnforcedCharmModifiedVersion:    config.EnforcedCharmModifiedVersion,
+				ContainerNames:                  config.ContainerNames,
 			})
 			if err != nil {
 				return nil, errors.Trace(err)

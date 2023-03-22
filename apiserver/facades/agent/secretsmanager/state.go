@@ -46,4 +46,56 @@ type CrossModelState interface {
 	GetToken(entity names.Tag) (string, error)
 	GetRemoteEntity(token string) (names.Tag, error)
 	GetMacaroon(entity names.Tag) (*macaroon.Macaroon, error)
+// The secret migration stuff should probably be moved to a new facade later.
+type State interface {
+	Application(string) (Application, error)
+	Unit(name string) (Unit, error)
+}
+
+type Application interface {
+	WatchSecretMigrationTasks() state.StringsWatcher
+}
+
+type Unit interface {
+	WatchSecretMigrationTasks() state.StringsWatcher
+}
+
+type stateShim struct {
+	*state.State
+}
+
+func (s stateShim) Application(id string) (Application, error) {
+	app, err := s.State.Application(id)
+	if err != nil {
+		return nil, err
+	}
+	return applicationShim{app}, nil
+}
+
+func (s stateShim) Unit(name string) (Unit, error) {
+	u, err := s.State.Unit(name)
+	if err != nil {
+		return nil, err
+	}
+	return unitShim{u}, nil
+}
+
+type applicationShim struct {
+	*state.Application
+}
+
+func (a applicationShim) WatchSecretMigrationTasks() state.StringsWatcher {
+	return a.Application.WatchSecretMigrationTasks()
+}
+
+type unitShim struct {
+	*state.Unit
+}
+
+func (u unitShim) WatchSecretMigrationTasks() state.StringsWatcher {
+	return u.Unit.WatchSecretMigrationTasks()
+}
+
+type SecretMigrationTasksWatcherAPI interface {
+	WatchSecretMigrationTasks() state.StringsWatcher
 }

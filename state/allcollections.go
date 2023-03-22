@@ -696,7 +696,7 @@ const (
 	secretRotateC         = "secretRotate"
 	secretBackendsC       = "secretBackends"
 	secretBackendsRotateC = "secretBackendsRotate"
-	secretMigrationTasksC = "secretMigrationTasksC"
+	secretMigrationTasksC = "secretMigrationTasks"
 )
 
 // watcherIgnoreList contains all the collections in mongo that should not be watched by the

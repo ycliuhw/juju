@@ -168,7 +168,7 @@ func (c *Client) GetRevisionContentInfo(uri *coresecrets.URI, revision int, pend
 	arg := params.SecretRevisionArg{
 		URI:           uri.String(),
 		Revisions:     []int{revision},
-		PendingDelete: pendingDelete,
+		PendingDelete: pendingDelete, // ???? This is not used???
 	}
 
 	var results params.SecretContentResults
@@ -261,19 +261,9 @@ func (c *Client) GetConsumerSecretsRevisionInfo(unitName string, uris []string) 
 }
 
 // SecretMetadata returns metadata for the specified secrets.
-func (c *Client) SecretMetadata(filter coresecrets.Filter) ([]coresecrets.SecretOwnerMetadata, error) {
-	arg := params.ListSecretsArgs{
-		Filter: params.SecretsFilter{
-			OwnerTag: filter.OwnerTag,
-			Revision: filter.Revision,
-		},
-	}
-	if filter.URI != nil {
-		uri := filter.URI.String()
-		arg.Filter.URI = &uri
-	}
+func (c *Client) SecretMetadata() ([]coresecrets.SecretOwnerMetadata, error) {
 	var results params.ListSecretResults
-	err := c.facade.FacadeCall("GetSecretMetadata", arg, &results)
+	err := c.facade.FacadeCall("GetSecretMetadata", nil, &results)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -369,6 +359,53 @@ func (c *Client) WatchSecretRevisionsExpiryChanges(ownerTags ...names.Tag) (watc
 	}
 	w := apiwatcher.NewSecretsTriggerWatcher(c.facade.RawAPICaller(), result)
 	return w, nil
+}
+
+// WatchSecretMigrationTasks sets up a watcher to notify of changes to secret migration tasks.
+// Note: leader unit should login using application tag to watch for application secrets.
+func (c *Client) WatchSecretMigrationTasks(ownerTag names.Tag) (watcher.StringsWatcher, error) {
+	args := params.Entities{
+		Entities: []params.Entity{
+			{Tag: ownerTag.String()},
+		},
+	}
+	var results params.StringsWatchResults
+	if err := c.facade.FacadeCall("WatchSecretMigrationTasks", args, &results); err != nil {
+		return nil, err
+	}
+	if len(results.Results) != 1 {
+		return nil, errors.Errorf("expected 1 result, got %d", len(results.Results))
+	}
+	result := results.Results[0]
+	if result.Error != nil {
+		return nil, apiservererrors.RestoreError(result.Error)
+	}
+	w := apiwatcher.NewStringsWatcher(c.facade.RawAPICaller(), result)
+	return w, nil
+}
+
+func (c *Client) StartSecretMigrationTask(id string) error {
+	// TODO: probably we don't need id at all, we just create one task doc per onwer!!!!
+	if err := c.facade.FacadeCall("StartSecretMigrationTask", id, nil); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
+func (c *Client) FailSecretMigrationTask(id string) error {
+	// TODO: probably we don't need id at all, we just create one task doc per onwer!!!!
+	if err := c.facade.FacadeCall("FailSecretMigrationTask", id, nil); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
+}
+
+func (c *Client) CompleteSecretMigrationTask(id string) error {
+	// TODO: probably we don't need id at all, we just create one task doc per onwer!!!!
+	if err := c.facade.FacadeCall("CompleteSecretMigrationTask", id, nil); err != nil {
+		return errors.Trace(err)
+	}
+	return nil
 }
 
 // SecretRevokeGrantArgs holds the args used to grant or revoke access to a secret.
