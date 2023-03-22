@@ -79,7 +79,7 @@ func (config Config) Validate() error {
 
 // NewWorker returns a secretmigrationminion Worker backed by config, or an error.
 func NewWorker(config Config) (worker.Worker, error) {
-	config.Logger.Criticalf("NewWorker config %s", pretty.Sprint(config))
+	config.Logger.Criticalf("NewWorker config.IsLeader %v, UnitTag %q", config.IsLeader, config.UnitTag)
 	if err := config.Validate(); err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -230,8 +230,12 @@ func (w *Worker) migrateSecrets(filter func(tag names.Tag) bool) error {
 			continue
 		}
 		for _, revision := range md.Revisions {
-			w.config.Logger.Criticalf("migrateSecrets processing revision: %s", pretty.Sprint(revision))
+			w.config.Logger.Criticalf("migrateSecrets processing revision: %d", revision)
 			content, _, draining, err := w.config.SecretManagerFacade.GetRevisionContentInfo(md.Metadata.URI, revision, false)
+			w.config.Logger.Warningf(
+				"migrateSecrets GetRevisionContentInfo(%q, %d, %v) content %s, draining %v, err: %v",
+				md.Metadata.URI, revision, false, pretty.Sprint(content), draining, err,
+			)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -241,11 +245,13 @@ func (w *Worker) migrateSecrets(filter func(tag names.Tag) bool) error {
 			}
 			if content.ValueRef == nil {
 				// ??????
+				w.config.Logger.Warningf("migrateSecrets content.ValueRef is nil")
 				continue
 			}
 			w.config.Logger.Criticalf("migrateSecrets content.ValueRef.BackendID: %q, activeBackendID %q", content.ValueRef.BackendID, activeBackendID)
 			if content.ValueRef.BackendID == activeBackendID || !draining {
 				// They are same!!
+				w.config.Logger.Warningf("migrateSecrets content.ValueRef.BackendID == activeBackendID || !draining")
 				continue
 			}
 

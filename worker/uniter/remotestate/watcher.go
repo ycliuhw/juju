@@ -5,6 +5,7 @@ package remotestate
 
 import (
 	"fmt"
+	"runtime/debug"
 	"strconv"
 	"strings"
 	"sync"
@@ -1073,6 +1074,11 @@ func (w *RemoteStateWatcher) leadershipChanged(isLeader bool) error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
+	if r := recover(); r != nil {
+		w.logger.Warningf("stacktrace from panic: \n" + string(debug.Stack()))
+		fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
+	}
+
 	w.current.Leader = isLeader
 	if w.secretRotateWorker != nil {
 		_ = worker.Stop(w.secretRotateWorker)
@@ -1082,7 +1088,9 @@ func (w *RemoteStateWatcher) leadershipChanged(isLeader bool) error {
 	w.current.SecretRotations = nil
 
 	if w.secretMigrationMinionWorker != nil {
-		_ = worker.Stop(w.secretMigrationMinionWorker)
+		if err := worker.Stop(w.secretMigrationMinionWorker); err != nil {
+			w.logger.Warningf("RemoteStateWatcher.leadershipChanged(isLeader=%v) => failed to stop secret migration minion worker: %v", isLeader, err)
+		}
 		w.secretMigrationMinionWorker = nil
 	}
 
@@ -1112,12 +1120,14 @@ func (w *RemoteStateWatcher) leadershipChanged(isLeader bool) error {
 	}
 	w.secretRotateWorker = rotateWatcher
 
-	if w.secretMigrationMinionWorker, err = w.secretMigrationMinionWorkerFunc(w.unit.Tag(), isLeader); err != nil {
+	secretMigrationMinionWorker, err := w.secretMigrationMinionWorkerFunc(w.unit.Tag(), isLeader)
+	if err != nil {
 		return errors.Trace(err)
 	}
-	if err := w.catacomb.Add(w.secretMigrationMinionWorker); err != nil {
+	if err := w.catacomb.Add(secretMigrationMinionWorker); err != nil {
 		return errors.Trace(err)
 	}
+	w.secretMigrationMinionWorker = secretMigrationMinionWorker
 
 	// Allow a generous buffer so a slow unit agent does not
 	// block the upstream worker.

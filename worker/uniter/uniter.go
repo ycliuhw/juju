@@ -6,6 +6,7 @@ package uniter
 import (
 	"fmt"
 	"os"
+	"runtime/debug"
 	"sync"
 
 	corecharm "github.com/juju/charm/v10"
@@ -325,8 +326,14 @@ func newUniter(uniterParams *UniterParams) func() (worker.Worker, error) {
 
 func (u *Uniter) loop(unitTag names.UnitTag) (err error) {
 	defer func() {
+		if r := recover(); r != nil {
+			u.logger.Warningf("stacktrace from panic: \n" + string(debug.Stack()))
+			fmt.Println("stacktrace from panic: \n" + string(debug.Stack()))
+		}
+
 		// If this is a CAAS unit, then dead errors are fairly normal ways to exit
 		// the uniter main loop, but the parent operator agent needs to keep running.
+		u.logger.Errorf("unit %q shutting down: %v", unitTag.Id(), err)
 		errorString := "<unknown>"
 		if err != nil {
 			errorString = err.Error()

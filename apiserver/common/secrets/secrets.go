@@ -61,46 +61,46 @@ func AdminBackendConfigInfo(model Model) (*provider.ModelBackendConfigInfo, erro
 	}
 	backendName := cfg.SecretBackend()
 
-	var backendType string
-	switch backendName {
-	case provider.Auto:
-		backendType = juju.BackendType
-		if model.Type() == state.ModelTypeCAAS {
-			backendType = kubernetes.BackendType
-		}
-	case provider.Internal:
-		backendType = juju.BackendType
-	}
+	// var backendType string
+	// switch backendName {
+	// case provider.Auto:
+	// 	backendType = juju.BackendType
+	// 	if model.Type() == state.ModelTypeCAAS {
+	// 		backendType = kubernetes.BackendType
+	// 	}
+	// case provider.Internal:
+	// 	backendType = juju.BackendType
+	// }
 
 	var info provider.ModelBackendConfigInfo
 	info.Configs = make(map[string]provider.ModelBackendConfig)
-	if backendType != "" {
-		if backendType == juju.BackendType {
-			info.ActiveID = model.ControllerUUID()
-			info.Configs[info.ActiveID] = provider.ModelBackendConfig{
-				ControllerUUID: model.ControllerUUID(),
-				ModelUUID:      model.UUID(),
-				ModelName:      model.Name(),
-				BackendConfig:  juju.BuiltInConfig(),
-			}
-		} else {
-			spec, err := cloudSpecForModel(model)
-			if err != nil {
-				return nil, errors.Trace(err)
-			}
-			k8sConfig, err := kubernetes.BuiltInConfig(spec)
-			if err != nil {
-				return nil, errors.Trace(err)
-			}
-			info.ActiveID = model.UUID()
-			info.Configs[info.ActiveID] = provider.ModelBackendConfig{
-				ControllerUUID: model.ControllerUUID(),
-				ModelUUID:      model.UUID(),
-				ModelName:      model.Name(),
-				BackendConfig:  *k8sConfig,
-			}
+	// We need to include builtin backends for secret migration(draining).
+	if model.Type() == state.ModelTypeCAAS {
+		spec, err := cloudSpecForModel(model)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		k8sConfig, err := kubernetes.BuiltInConfig(spec)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		info.ActiveID = model.UUID()
+		info.Configs[info.ActiveID] = provider.ModelBackendConfig{
+			ControllerUUID: model.ControllerUUID(),
+			ModelUUID:      model.UUID(),
+			ModelName:      model.Name(),
+			BackendConfig:  *k8sConfig,
+		}
+	} else {
+		info.ActiveID = model.ControllerUUID()
+		info.Configs[info.ActiveID] = provider.ModelBackendConfig{
+			ControllerUUID: model.ControllerUUID(),
+			ModelUUID:      model.UUID(),
+			ModelName:      model.Name(),
+			BackendConfig:  juju.BuiltInConfig(),
 		}
 	}
+
 	// TODO(secrets) - only use those in use by model
 	// For now, we'll return all backends on the controller.
 	backendState := GetSecretBackendsState(model)
@@ -108,6 +108,7 @@ func AdminBackendConfigInfo(model Model) (*provider.ModelBackendConfigInfo, erro
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	logger.Criticalf("AdminBackendConfigInfo backends: %s", pretty.Sprint(backends))
 	for _, b := range backends {
 		if b.Name == backendName {
 			info.ActiveID = b.ID
@@ -137,6 +138,8 @@ func AdminBackendConfigInfo(model Model) (*provider.ModelBackendConfigInfo, erro
 // The result includes config for all relevant backends, including the id
 // of the current active backend.
 func BackendConfigInfo(model Model, backendIDs []string, authTag names.Tag, leadershipChecker leadership.Checker) (*provider.ModelBackendConfigInfo, error) {
+	// TODO: WE NEED TO INCLUDE THE K8S SECRET BACKEND AS WELL.
+	// CURRENTLY AdminBackendConfigInfo ONLY RETURNS THE EXTERNAL BACKEND BECAUSE THE K8S BACKEND IS NOT STORED IN MONGO!!!!
 	adminModelCfg, err := AdminBackendConfigInfo(model)
 	if err != nil {
 		return nil, errors.Annotate(err, "getting configured secrets providers")
