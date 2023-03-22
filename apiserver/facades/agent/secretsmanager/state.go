@@ -46,6 +46,8 @@ type CrossModelState interface {
 	GetToken(entity names.Tag) (string, error)
 	GetRemoteEntity(token string) (names.Tag, error)
 	GetMacaroon(entity names.Tag) (*macaroon.Macaroon, error)
+}
+
 // The secret migration stuff should probably be moved to a new facade later.
 type State interface {
 	Application(string) (Application, error)

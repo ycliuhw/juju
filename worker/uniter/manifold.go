@@ -206,7 +206,7 @@ func Manifold(config ManifoldConfig) dependency.Manifold {
 				SecretExpiryWorkerFunc:          secretExpiryWorkerFunc,
 				SecretMigrationMinionWorkerFunc: secretMigrationMinionWorkerFunc,
 				DataDir:                         agentConfig.DataDir(),
-				Downloader:                      downloader,
+				Downloader:                      s3Downloader,
 				MachineLock:                     manifoldConfig.MachineLock,
 				CharmDirGuard:                   charmDirGuard,
 				UpdateStatusSignal:              NewUpdateStatusTimer(),

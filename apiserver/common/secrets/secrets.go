@@ -11,6 +11,7 @@ import (
 	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
 	"github.com/juju/utils/v3"
+	"github.com/kr/pretty"
 
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/cloud"
@@ -147,6 +148,8 @@ func BackendConfigInfo(model Model, backendIDs []string, authTag names.Tag, lead
 	if len(backendIDs) == 0 {
 		backendIDs = []string{adminModelCfg.ActiveID}
 	}
+	logger.Criticalf("BackendConfigInfo backendIDs: %v", backendIDs)
+	logger.Criticalf("BackendConfigInfo adminModelCfg: %s", pretty.Sprint(adminModelCfg))
 	for _, backendID := range backendIDs {
 		cfg, ok := adminModelCfg.Configs[backendID]
 		if !ok {

@@ -47,7 +47,8 @@ func NewClient(jujuAPI JujuAPIClient) (*secretsClient, error) {
 	return c, nil
 }
 
-func (c *secretsClient) getBackend(backendID *string) (provider.SecretsBackend, string, error) {
+// GetBackend returns the secrets backend for the specified ID and the model's current active backend ID.
+func (c *secretsClient) GetBackend(backendID *string) (provider.SecretsBackend, string, error) {
 	logger.Criticalf("secretsClient.getBackend(%v)", backendID)
 
 	info, err := c.jujuAPI.GetSecretBackendConfig(backendID)
@@ -101,7 +102,7 @@ func (c *secretsClient) GetContent(uri *secrets.URI, label string, refresh, peek
 
 // SaveContent implements Client.
 func (c *secretsClient) SaveContent(uri *secrets.URI, revision int, value secrets.SecretValue) (secrets.ValueRef, error) {
-	activeBackend, activeBackendID, err := c.getBackend(nil)
+	activeBackend, activeBackendID, err := c.GetBackend(nil)
 	if err != nil {
 		if errors.Is(err, errors.NotFound) {
 			return secrets.ValueRef{}, errors.NotSupportedf("saving secret content to external backend")
@@ -153,7 +154,7 @@ func (c *secretsClient) DeleteContent(uri *secrets.URI, revision int) error {
 
 // DeleteExternalContent implements Client.
 func (c *secretsClient) DeleteExternalContent(ref secrets.ValueRef) error {
-	backend, _, err := c.getBackend(&ref.BackendID)
+	backend, _, err := c.GetBackend(&ref.BackendID)
 	if err != nil {
 		return errors.Trace(err)
 	}

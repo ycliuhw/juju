@@ -5,6 +5,7 @@ package secretmigrationminion
 
 import (
 	// "fmt"
+	"context"
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
@@ -42,8 +43,8 @@ type SecretManagerFacade interface {
 	FailSecretMigrationTask(id string) error
 	CompleteSecretMigrationTask(id string) error
 	SecretMetadata() ([]coresecrets.SecretOwnerMetadata, error)
-	GetRevisionContentInfo(uri *coresecrets.URI, revision int, pendingDelete bool) (*jujusecrets.ContentParams, error)
-	GetSecretBackendConfig() (*provider.ModelBackendConfigInfo, error)
+	GetRevisionContentInfo(uri *coresecrets.URI, revision int, pendingDelete bool) (*jujusecrets.ContentParams, *provider.ModelBackendConfig, bool, error)
+	GetSecretBackendConfig(backendID *string) (*provider.ModelBackendConfigInfo, error)
 }
 
 // Config defines the operation of the Worker.
@@ -187,7 +188,7 @@ func (w *Worker) loop() (err error) {
 // 	if err != nil {
 // 		return nil, errors.Trace(err)
 // 	}
-// 	activeBackend, err := backends.ForBackend(cfg.ActiveID)
+// 	activeBackend, err := backends.GetBackend(cfg.ActiveID)
 // 	if err != nil {
 // 		return nil, errors.Trace(err)
 // 	}
@@ -201,19 +202,19 @@ func (w *Worker) migrateSecrets(filter func(tag names.Tag) bool) error {
 	}
 	w.config.Logger.Criticalf("migrateSecrets info: %s", pretty.Sprint(info))
 
-	// TODO: cache ActiveID and only update it if model config(secret-backend) had change.
-	cfg, err := w.config.SecretManagerFacade.GetSecretBackendConfig()
-	if err != nil {
-		return errors.Trace(err)
-	}
-	w.config.Logger.Criticalf("migrateSecrets cfg: %s", pretty.Sprint(cfg))
-	activeBackendID := cfg.ActiveID
+	// cfg, err := w.config.SecretManagerFacade.GetSecretBackendConfig()
+	// if err != nil {
+	// 	return errors.Trace(err)
+	// }
+	// w.config.Logger.Criticalf("migrateSecrets cfg: %s", pretty.Sprint(cfg))
+	// activeBackendID := cfg.ActiveID
 
 	backends, err := w.secretsBackends()
 	if err != nil {
 		return errors.Trace(err)
 	}
-	activeBackend, err := backends.ForBackend(activeBackendID)
+	// TODO: cache ActiveID and only update it if model config(secret-backend) had change.
+	activeBackend, activeBackendID, err := backends.GetBackend(nil)
 	if err != nil {
 		return errors.Trace(err)
 	}
@@ -230,7 +231,7 @@ func (w *Worker) migrateSecrets(filter func(tag names.Tag) bool) error {
 		}
 		for _, revision := range md.Revisions {
 			w.config.Logger.Criticalf("migrateSecrets processing revision: %s", pretty.Sprint(revision))
-			content, err := w.config.SecretManagerFacade.GetRevisionContentInfo(md.Metadata.URI, revision, false)
+			content, _, draining, err := w.config.SecretManagerFacade.GetRevisionContentInfo(md.Metadata.URI, revision, false)
 			if err != nil {
 				return errors.Trace(err)
 			}
@@ -243,25 +244,28 @@ func (w *Worker) migrateSecrets(filter func(tag names.Tag) bool) error {
 				continue
 			}
 			w.config.Logger.Criticalf("migrateSecrets content.ValueRef.BackendID: %q, activeBackendID %q", content.ValueRef.BackendID, activeBackendID)
-			if content.ValueRef.BackendID == activeBackendID {
+			if content.ValueRef.BackendID == activeBackendID || !draining {
+				// They are same!!
 				continue
 			}
 
-			oldBackend, err := backends.ForBackend(content.ValueRef.BackendID)
+			oldBackend, _, err := backends.GetBackend(&content.ValueRef.BackendID)
 			if err != nil {
 				return errors.Trace(err)
 			}
-			secretVal, err := oldBackend.GetContent(md.Metadata.URI, "", false, false)
+			secretVal, err := oldBackend.GetContent(context.TODO(), content.ValueRef.RevisionID)
 			w.config.Logger.Criticalf("migrateSecrets secretVal: %s, err %#v", pretty.Sprint(secretVal), err)
 			if err != nil {
 				return errors.Trace(err)
 			}
-			_, err = activeBackend.SaveContent(md.Metadata.URI, revision, secretVal)
+			_, err = activeBackend.SaveContent(context.TODO(), md.Metadata.URI, revision, secretVal)
 			w.config.Logger.Criticalf("migrateSecrets activeBackend.SaveContent(%q, %d, secretVal) err %#v", md.Metadata.URI, revision, err)
 			if err != nil {
 				// TODO: update TASK to FAILED!!!
+				// TODO: impelement retry logic!!!
 				return errors.Trace(err)
 			}
+			// TODO: update the secret's backend ID to activeBackendID.
 			// TODO: update TASK to COMPLETE!!!
 		}
 	}
