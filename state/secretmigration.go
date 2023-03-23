@@ -79,6 +79,7 @@ func (m *Model) ScheduleSecretMigrationTasks() error {
 	for _, tag := range alreadyScheduled {
 		ownerTagsSet.Remove(tag)
 	}
+	// TODO: ownerTagsSet.Remove(secrets does not have any inactive backend revisions)
 
 	buildTxn := func(attempt int) ([]txn.Op, error) {
 		var ops []txn.Op
