@@ -129,7 +129,7 @@ func (ctx *context) run(c *gc.C, steps []stepper, waitForWatchersFn func(*gc.C, 
 			return
 		}
 		c.Logf("step %d", i)
-		c.Logf("%#v", s)
+		// c.Logf("%#v", s)
 		if req, ok := s.(idleModelWatcherRequirer); ok && req.requireModelWatchersIdle() {
 			waitForWatchersFn(c, ctx.st.ModelUUID())
 		}
@@ -557,6 +557,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -608,6 +609,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -655,6 +657,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -703,6 +706,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -759,6 +763,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -797,6 +802,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -831,6 +837,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 		startMissingMachine{"0"},
@@ -864,6 +871,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -892,6 +900,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -912,6 +921,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -943,6 +953,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -1023,6 +1034,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -1175,6 +1187,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -1213,6 +1226,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 		scopedExpect{
@@ -1255,6 +1269,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 		scopedExpect{
@@ -1291,6 +1306,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 		scopedExpect{
@@ -1333,6 +1349,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 		scopedExpect{
@@ -1396,6 +1413,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -1506,6 +1524,16 @@ var statusTests = []testCase{
 				"storage": M{},
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
+				},
+				"relations": L{
+					M{
+						"interface":"mysql",
+						"message":"",
+						"provider":"mysql:server",
+						"requirer":"wordpress:db",
+						"status":"joined",
+						"type":"regular",
+					},
 				},
 			},
 		},
@@ -1618,6 +1646,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -1678,6 +1707,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -1741,6 +1771,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -1955,6 +1986,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -2072,6 +2104,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -2246,6 +2279,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 				"branches": M{
 					"apple": M{
 						"created":    "15:04:05+07:00",
@@ -2375,6 +2409,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 				"branches": M{
 					"apple": M{
 						"created":    "15:04:05+07:00",
@@ -2455,6 +2490,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 				"branches": M{
 					"banana": M{
 						"created":    "15:04:05+07:00",
@@ -2554,6 +2590,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 
@@ -2652,6 +2689,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -2716,6 +2754,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -2782,6 +2821,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -2850,6 +2890,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -2917,6 +2958,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3075,6 +3117,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3104,6 +3147,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 			stderr: "\nModel \"controller\" is empty.\n",
 		},
@@ -3169,6 +3213,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3255,6 +3300,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3283,6 +3329,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3337,6 +3384,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3428,6 +3476,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3461,6 +3510,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 			stderr: "\nModel \"controller\" is empty.\n",
 		},
@@ -3490,6 +3540,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 			stderr: "\nModel \"controller\" is empty.\n",
 		},
@@ -3632,6 +3683,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3698,6 +3750,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 		},
 	),
@@ -3728,6 +3781,7 @@ var statusTests = []testCase{
 				"controller": M{
 					"timestamp": "15:04:05+07:00",
 				},
+				// "relations": L{},
 			},
 			stderr: "\nModel \"controller\" is empty.\n",
 		},
@@ -4720,6 +4774,11 @@ func (e scopedExpect) step(c *gc.C, ctx *context) {
 		c.Assert(err, jc.ErrorIsNil)
 		pretty.Ldiff(c, actual, expected)
 		c.Assert(actual, jc.DeepEquals, expected)
+		// ok := c.Check(actual, jc.DeepEquals, expected)
+		// if !ok {
+		// 	c.Logf("actual: %s", actual)
+		// 	c.Logf("expected: %s", expected)
+		// }
 	}
 }
 
