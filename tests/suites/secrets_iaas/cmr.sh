@@ -18,13 +18,13 @@ run_secrets_cmr() {
 	juju config dummy-source token=foobar
 	juju switch "model-secrets-consume"
 	wait_for "active" '."application-endpoints"["dummy-source"]."application-status".current'
+	relation_id=$(juju --show-log show-unit -m model-secrets-consume dummy-sink/0 --format json | jq '."dummy-sink/0"."relation-info"[0]."relation-id"')
 
 	juju switch "model-secrets-offer"
 	wait_for "1" '.offers["dummy-source"]["active-connected-count"]'
 
 	echo "Create and share a secret on the offer side"
 	secret_uri=$(juju exec --unit dummy-source/0 -- secret-add foo=bar)
-	relation_id=$(juju --show-log show-unit -m model-secrets-offer dummy-source/0 --format json | jq '."dummy-source/0"."relation-info"[0]."relation-id"')
 	juju exec --unit dummy-source/0 -- secret-grant "$secret_uri" -r "$relation_id"
 
 	echo "Checking: the secret can be read by the consumer"
