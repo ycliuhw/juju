@@ -18,6 +18,7 @@ import (
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
+	"github.com/kr/pretty"
 	// "github.com/kr/pretty"
 	"gopkg.in/macaroon.v2"
 	"gopkg.in/yaml.v2"
@@ -289,8 +290,8 @@ var expiryIn = 15 * time.Minute
 
 func (a *AuthContext) CreateMacaroonForJaaS(ctx context.Context, sourceModelUUID, offerUUID string, username string, relID string, version bakery.Version) (*bakery.Macaroon, error) {
 	logger.Criticalf("CreateMacaroonForJaaS sourceModelUUID %q, offerUUID %q, username %q, relID %q, version %d", sourceModelUUID, offerUUID, username, relID, version)
-	// idURL := `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`
-	idURL := a.offerAccessEndpoint
+	idURL := `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`
+	// idURL := a.offerAccessEndpoint
 
 	// transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
 	// thirdPartyInfo, err := httpbakery.ThirdPartyInfoForLocation(context.TODO(), &http.Client{Transport: transport}, idURL)
@@ -327,7 +328,7 @@ func (a *AuthContext) CreateMacaroonForJaaS(ctx context.Context, sourceModelUUID
 	conditionParts := []string{
 		"is-consumer",
 		// "user-ales@external",
-		username,
+		names.NewUserTag(username).String(),
 		// "applicationoffer-{uuid}",
 		names.NewApplicationOfferTag(offerUUID).String(),
 	}
@@ -494,12 +495,11 @@ func (a *authenticator) checkMacaroons(
 		authlogger.Criticalf("checkMacaroons out %#v, err %#v", o, err)
 	}()
 	authlogger.Debugf("check %d macaroons with required attrs: %v", len(mac), requiredValues)
-	authlogger.Criticalf("checkMacaroons %d macaroons with required attrs: %v", len(mac), requiredValues)
+	authlogger.Criticalf("checkMacaroons %d macaroons with required attrs: %#v, op %#v", len(mac), requiredValues, op)
 	for i, mc := range mac {
 		data, err := json.Marshal(mc)
-		authlogger.Criticalf("checkMacaroons err %#v, mac[%d] => \n%s\n==========%#v", err, i, data, mc)
+		authlogger.Criticalf("checkMacaroons err %#v, mac[%d] => \n%s\n==========\n%s", err, i, data, pretty.Sprint(mc))
 	}
-	// mc := mac[0]
 
 	// return nil, &apiservererrors.DischargeRequiredError{
 	// 	Cause: &bakery.DischargeRequiredError{
@@ -516,12 +516,11 @@ func (a *authenticator) checkMacaroons(
 			continue
 		}
 		authlogger.Debugf("- mac %s", m.Id())
+		authlogger.Criticalf("- mac %s", m.Id())
 	}
-	data, err := json.Marshal(mac[0])
-	authlogger.Criticalf("checkMacaroons err %#v, mac[0] => \n%s", err, data)
 	declared := checkers.InferDeclared(coremacaroon.MacaroonNamespace, mac)
 	authlogger.Debugf("check macaroons with declared attrs: %v", declared)
-	authlogger.Criticalf("check macaroons with declared attrs: %v", declared)
+	authlogger.Criticalf("check macaroons with declared: %s", pretty.Sprint(declared))
 	username, ok := declared[usernameKey]
 	if !ok {
 		return nil, apiservererrors.ErrPerm
@@ -535,9 +534,9 @@ func (a *authenticator) checkMacaroons(
 	// Do we have all the caveats we need?
 	// No? Discharge to JAAS!
 	if err == nil && len(ai.Conditions()) > 0 {
+		authlogger.Criticalf("ok macaroon check ok, attr: %s, conditions: %s", pretty.Sprint(declared), pretty.Sprint(ai.Conditions()))
 		if err = a.checkMacaroonCaveats(op, relation, sourceModelUUID, offerUUID); err == nil {
 			authlogger.Debugf("ok macaroon check ok, attr: %v, conditions: %v", declared, ai.Conditions())
-			authlogger.Criticalf("ok macaroon check ok, attr: %v, conditions: %v", declared, ai.Conditions())
 			return declared, nil
 		}
 		if _, ok := err.(*bakery.VerificationError); !ok {

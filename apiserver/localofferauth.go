@@ -9,10 +9,12 @@ import (
 	// "io"
 	"crypto/tls"
 	"net/http"
+	"time"
 	// "net/url"
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/checkers"
+	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/identchecker"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	"github.com/juju/errors"
 	// "github.com/kr/pretty"
@@ -88,32 +90,74 @@ func newOfferAuthcontext(pool *state.StatePool) (*crossmodel.AuthContext, error)
 	}
 
 	getTestBakery := func(idURL string) (*bakeryutil.ExpirableStorageBakery, error) {
-		keypair, err := bakery.GenerateKey()
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
+		// keypair, err := bakery.GenerateKey()
+		// if err != nil {
+		// 	return nil, errors.Trace(err)
+		// }
+		// pKey, err := getPublicKey(idURL)
+		// if err != nil {
+		// 	return nil, errors.Trace(err)
+		// }
+		// logger.Criticalf("getTestBakery pKey %q", pKey.Public.String())
+		// locator := bakeryutil.BakeryThirdPartyLocator{PublicKey: pKey.Public}
+		// // location := idURL
+		// return &bakeryutil.ExpirableStorageBakery{
+		// 	Bakery: bakery.New(
+		// 		bakery.BakeryParams{
+		// 			Checker:      checker,
+		// 			RootKeyStore: store,
+		// 			Locator:      locator,
+		// 			Key:          keypair,
+		// 			// Key:           pKey,
+		// 			OpsAuthorizer: crossmodel.CrossModelAuthorizer{},
+		// 			Location:      location,
+		// 		},
+		// 	),
+		// 	Location: location,
+		// 	Key:      keypair,
+		// 	// Key:     pKey,
+		// 	Store:   store,
+		// 	Locator: locator,
+		// }, nil
+
 		pKey, err := getPublicKey(idURL)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		locator := bakeryutil.BakeryThirdPartyLocator{PublicKey: pKey.Public}
+		idPK := pKey.Public
+		logger.Criticalf("getTestBakery pKey %q", pKey.Public.String())
+		key, err := bakeryConfig.GetExternalUsersThirdPartyKey()
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+
+		pkCache := bakery.NewThirdPartyStore()
+		locator := httpbakery.NewThirdPartyLocator(nil, pkCache)
+		pkCache.AddInfo(idURL, bakery.ThirdPartyInfo{
+			PublicKey: idPK,
+			Version:   3,
+		})
+
+		store, err := st.NewBakeryStorage()
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		store = store.ExpireAfter(15 * time.Minute)
 		return &bakeryutil.ExpirableStorageBakery{
 			Bakery: bakery.New(
 				bakery.BakeryParams{
-					Checker:      checker,
-					RootKeyStore: store,
-					Locator:      locator,
-					Key:          keypair,
-					// Key:           pKey,
+					Checker:       checker,
+					RootKeyStore:  store,
+					Locator:       locator,
+					Key:           key,
 					OpsAuthorizer: crossmodel.CrossModelAuthorizer{},
 					Location:      location,
 				},
 			),
 			Location: location,
-			Key:      keypair,
-			// Key:     pKey,
-			Store:   store,
-			Locator: locator,
+			Key:      key,
+			Store:    store,
+			Locator:  locator,
 		}, nil
 	}
 	authCtx, err := crossmodel.NewAuthContext(
