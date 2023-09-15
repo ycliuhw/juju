@@ -14,6 +14,7 @@ import (
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	"github.com/juju/errors"
+	"github.com/kr/pretty"
 	"gopkg.in/httprequest.v1"
 	"gopkg.in/macaroon.v2"
 
@@ -192,16 +193,19 @@ func bakeryError(err error) error {
 	if params.ErrCode(err) != params.CodeDischargeRequired {
 		return err
 	}
+	logger.Criticalf("bakeryError: err %#v", err)
 	errResp := errors.Cause(err).(*params.Error)
 	if errResp.Info == nil {
 		return errors.Annotate(err, "no error info found in discharge-required response error")
 	}
+	logger.Criticalf("bakeryError: errResp %#v", errResp)
 	// It's a discharge-required error, so make an appropriate httpbakery
 	// error from it.
 	var info params.DischargeRequiredErrorInfo
 	if errUnmarshal := errResp.UnmarshalInfo(&info); errUnmarshal != nil {
 		return errors.Annotate(err, "unable to extract macaroon details from discharge-required response error")
 	}
+	logger.Criticalf("bakeryError: info %s", pretty.Sprint(info))
 
 	bakeryErr := &httpbakery.Error{
 		Message: err.Error(),
@@ -210,6 +214,8 @@ func bakeryError(err error) error {
 			MacaroonPath: info.MacaroonPath,
 		},
 	}
+	logger.Criticalf("bakeryError: info.Macaroon %s", pretty.Sprint(info.Macaroon))
+	logger.Criticalf("bakeryError: info.BakeryMacaroon %s", pretty.Sprint(info.BakeryMacaroon))
 	if info.Macaroon != nil || info.BakeryMacaroon != nil {
 		// Prefer the newer bakery.v2 macaroon.
 		dcMac := info.BakeryMacaroon

@@ -10,6 +10,7 @@ import (
 
 	"github.com/juju/clock"
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 	"github.com/juju/pubsub/v2"
 	"github.com/juju/worker/v3"
 
@@ -28,6 +29,8 @@ import (
 	"github.com/juju/juju/state"
 	"github.com/juju/juju/worker/syslogger"
 )
+
+var logger = loggo.GetLogger("juju.worker.apiserver")
 
 // Config is the configuration required for running an API server worker.
 type Config struct {
@@ -185,8 +188,11 @@ func NewWorker(config Config) (worker.Worker, error) {
 
 // gatherJWTAuthenticator is responsible for building up the jwt authenticator
 // if this controller has been provisioned to trust external jwt tokens.
-func gatherJWTAuthenticator(controllerConfig jujucontroller.Config) (jwt.Authenticator, error) {
+func gatherJWTAuthenticator(controllerConfig jujucontroller.Config) (_ jwt.Authenticator, err error) {
 	jwtRefreshURL := controllerConfig.LoginTokenRefreshURL()
+	defer func() {
+		logger.Criticalf("gatherJWTAuthenticator jwtRefreshURL %q, err %#v", jwtRefreshURL, err)
+	}()
 	if jwtRefreshURL == "" {
 		return nil, nil
 	}

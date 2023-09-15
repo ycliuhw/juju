@@ -117,12 +117,26 @@ func newAPIHandler(srv *Server, st *state.State, rpcConn *rpc.Conn, modelUUID st
 
 	// Facades involved with managing application offers need the auth context
 	// to mint and validate macaroons.
-	localOfferAccessEndpoint := url.URL{
+	offerAccessEndpoint := &url.URL{
 		Scheme: "https",
 		Host:   serverHost,
 		Path:   localOfferAccessLocationPath,
 	}
-	offerAuthCtxt := srv.offerAuthCtxt.WithDischargeURL(localOfferAccessEndpoint.String())
+	// ctrlCfg, err := st.ControllerConfig()
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+	// loginTokenRefreshURLStr := ctrlCfg.LoginTokenRefreshURL()
+	// logger.Criticalf("loginTokenRefreshURLStr %q", loginTokenRefreshURLStr)
+	// if loginTokenRefreshURLStr != "" {
+	// 	offerAccessEndpoint, err = url.Parse(loginTokenRefreshURLStr)
+	// 	if err != nil {
+	// 		return nil, errors.Trace(err)
+	// 	}
+	// 	offerAccessEndpoint.Path = "/macaroons"
+	// }
+	// logger.Criticalf("offerAccessEndpoint %q", offerAccessEndpoint.String())
+	offerAuthCtxt := srv.offerAuthCtxt.WithDischargeURL(offerAccessEndpoint.String())
 	if err := r.resources.RegisterNamed(
 		"offerAccessAuthContext",
 		common.ValueResource{Value: offerAuthCtxt},
@@ -736,6 +750,7 @@ func (r *apiHandler) EntityHasPermission(entity names.Tag, operation permission.
 		return r.authInfo.Delegator.SubjectPermissions(authentication.TagToEntity(entity), subject)
 	}
 	has, err := common.HasPermission(userAccessFunc, entity, operation, target)
+	// logger.Criticalf("EntityHasPermission %q %q %q %#v", entity, operation, target, err)
 	if err != nil && !errors.Is(err, errors.NotFound) {
 		return fmt.Errorf("checking entity %q has permission: %w", entity, err)
 	}

@@ -316,3 +316,4 @@ require (
 replace google.golang.org/grpc/naming => google.golang.org/grpc v1.29.1
 
 replace gopkg.in/yaml.v2 => github.com/juju/yaml/v2 v2.0.0
+replace github.com/go-macaroon-bakery/macaroon-bakery/v3 => ../../go-macaroon-bakery/macaroon-bakery

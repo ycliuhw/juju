@@ -489,7 +489,7 @@ func (api *OffersAPI) getConsumeDetails(user names.UserTag, urls params.OfferURL
 				continue
 			}
 		}
-
+		logger.Criticalf("offerDetails: %#v", offerDetails)
 		offerMacaroon, err := api.authContext.CreateConsumeOfferMacaroon(api.ctx, offerDetails, user.Id(), urls.BakeryVersion)
 		if err != nil {
 			results[i].Error = apiservererrors.ServerError(err)
