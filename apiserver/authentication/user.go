@@ -19,6 +19,7 @@ import (
 	"github.com/juju/names/v4"
 	"gopkg.in/macaroon.v2"
 
+	"github.com/juju/juju/apiserver/bakeryutil"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	coremacaroon "github.com/juju/juju/core/macaroon"
 	"github.com/juju/juju/state"
@@ -31,7 +32,8 @@ type LocalUserAuthenticator struct {
 	AgentAuthenticator
 
 	// Bakery holds the bakery that is used to mint and verify macaroons.
-	Bakery ExpirableStorageBakery
+	// Bakery ExpirableStorageBakery
+	Bakery *bakeryutil.ExpirableStorageBakery
 
 	// Clock is used to calculate the expiry time for macaroons.
 	Clock clock.Clock

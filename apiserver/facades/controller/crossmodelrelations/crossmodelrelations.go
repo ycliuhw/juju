@@ -5,6 +5,7 @@ package crossmodelrelations
 
 import (
 	"context"
+	"encoding/json"
 	"strings"
 	"sync"
 
@@ -191,6 +192,10 @@ func (api *CrossModelRelationsAPI) registerRemoteRelation(relation params.Regist
 	}
 
 	// Check that the supplied macaroon allows access.
+	for idx, m := range relation.Macaroons {
+		d, err := json.Marshal(m)
+		logger.Criticalf("CrossModelRelationsAPI.registerRemoteRelation relation.Macaroons[%d] %s, err", idx, string(d), err)
+	}
 	auth := api.authCtxt.Authenticator()
 	attr, err := auth.CheckOfferMacaroons(api.ctx, api.st.ModelUUID(), appOffer.OfferUUID, relation.Macaroons, relation.BakeryVersion)
 	if err != nil {
@@ -330,6 +335,8 @@ func (api *CrossModelRelationsAPI) registerRemoteRelation(relation params.Regist
 	if err != nil {
 		return nil, errors.Annotate(err, "creating relation macaroon")
 	}
+	d, err := json.Marshal(relationMacaroon)
+	logger.Criticalf("CrossModelRelationsAPI.registerRemoteRelation relation macaroon %s, err", string(d), err)
 	return &params.RemoteRelationDetails{
 		Token:    token,
 		Macaroon: relationMacaroon.M(),
@@ -507,6 +514,7 @@ func (api *CrossModelRelationsAPI) WatchOfferStatus(
 	auth := api.authCtxt.Authenticator()
 	for i, arg := range offerArgs.Args {
 		// Ensure the supplied macaroon allows access.
+		logger.Criticalf("CrossModelRelationsAPI.WatchOfferStatus arg.OfferUUID %q, arg.BakeryVersion %d, arg.Macaroons %v", arg.OfferUUID, arg.BakeryVersion, arg.Macaroons)
 		_, err := auth.CheckOfferMacaroons(api.ctx, api.st.ModelUUID(), arg.OfferUUID, arg.Macaroons, arg.BakeryVersion)
 		if err != nil {
 			results.Results[i].Error = apiservererrors.ServerError(err)
@@ -560,7 +568,7 @@ func (api *CrossModelRelationsAPI) WatchConsumedSecretsChanges(args params.Watch
 		// Ensure the supplied macaroon allows access.
 		_, err = auth.CheckOfferMacaroons(api.ctx, api.st.ModelUUID(), offerUUID, arg.Macaroons, arg.BakeryVersion)
 		if err != nil {
-			results.Results[i].Error = apiservererrors.ServerError(err)
+			// results.Results[i].Error = apiservererrors.ServerError(err)
 			continue
 		}
 

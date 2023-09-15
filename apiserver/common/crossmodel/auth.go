@@ -5,17 +5,25 @@ package crossmodel
 
 import (
 	"context"
+	// "crypto/tls"
+	"encoding/json"
+	// "net/http"
+	"strings"
 	"time"
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/checkers"
+	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/identchecker"
+	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
+	// "github.com/kr/pretty"
 	"gopkg.in/macaroon.v2"
 	"gopkg.in/yaml.v2"
 
 	"github.com/juju/juju/apiserver/authentication"
+	"github.com/juju/juju/apiserver/bakeryutil"
 	"github.com/juju/juju/apiserver/common"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	coremacaroon "github.com/juju/juju/core/macaroon"
@@ -67,7 +75,8 @@ type AuthContext struct {
 
 	clock              clock.Clock
 	offerThirdPartyKey *bakery.KeyPair
-	offerBakery        authentication.ExpirableStorageBakery
+	offerBakery        *bakeryutil.ExpirableStorageBakery
+	getTestBakery      func(idURL string) (*bakeryutil.ExpirableStorageBakery, error)
 
 	offerAccessEndpoint string
 }
@@ -77,13 +86,16 @@ type AuthContext struct {
 func NewAuthContext(
 	systemState Backend,
 	offerThirdPartyKey *bakery.KeyPair,
-	offerBakery authentication.ExpirableStorageBakery,
+	// offerBakery authentication.ExpirableStorageBakery,
+	offerBakery *bakeryutil.ExpirableStorageBakery,
+	getTestBakery func(idURL string) (*bakeryutil.ExpirableStorageBakery, error),
 ) (*AuthContext, error) {
 	ctxt := &AuthContext{
 		systemState:        systemState,
 		clock:              clock.WallClock,
 		offerBakery:        offerBakery,
 		offerThirdPartyKey: offerThirdPartyKey,
+		getTestBakery:      getTestBakery,
 	}
 	return ctxt, nil
 }
@@ -213,8 +225,10 @@ func (a *AuthContext) offerPermissionYaml(sourceModelUUID, username, offerURL, r
 	return string(out), nil
 }
 
+// !!! The 1st MACAROON is created here !!!
 // CreateConsumeOfferMacaroon creates a macaroon that authorises access to the specified offer.
 func (a *AuthContext) CreateConsumeOfferMacaroon(ctx context.Context, offer *params.ApplicationOfferDetails, username string, version bakery.Version) (*bakery.Macaroon, error) {
+	logger.Criticalf("CreateConsumeOfferMacaroon offer %#v, username %q, version %d", offer, username, version)
 	sourceModelTag, err := names.ParseModelTag(offer.SourceModelTag)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -224,20 +238,33 @@ func (a *AuthContext) CreateConsumeOfferMacaroon(ctx context.Context, offer *par
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-
+	logger.Criticalf("CreateConsumeOfferMacaroon checkers.DeclaredCaveat(offeruuidKey, offer.OfferUUID) %#v", checkers.DeclaredCaveat(offeruuidKey, offer.OfferUUID))
 	return bakery.NewMacaroon(
 		ctx,
 		version,
 		[]checkers.Caveat{
 			checkers.TimeBeforeCaveat(expiryTime),
 			checkers.DeclaredCaveat(sourcemodelKey, sourceModelTag.Id()),
-			checkers.DeclaredCaveat(offeruuidKey, offer.OfferUUID),
+			// checkers.DeclaredCaveat(offeruuidKey, offer.OfferUUID),
 			checkers.DeclaredCaveat(usernameKey, username),
-		}, crossModelConsumeOp(offer.OfferUUID))
+		},
+		crossModelConsumeOp(offer.OfferUUID),
+	)
+
+	// m, err := a.CreateMacaroonForJaaS(
+	// 	ctx, sourceModelTag.Id(), offer.OfferUUID, username, "", version,
+	// )
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+	// data, err := json.Marshal(m)
+	// logger.Criticalf("checkMacaroons err %#v, Macaroon \n%s", err, data)
+	// return m, nil
 }
 
 // CreateRemoteRelationMacaroon creates a macaroon that authorises access to the specified relation.
 func (a *AuthContext) CreateRemoteRelationMacaroon(ctx context.Context, sourceModelUUID, offerUUID string, username string, rel names.Tag, version bakery.Version) (*bakery.Macaroon, error) {
+	logger.Criticalf("CreateRemoteRelationMacaroon sourceModelUUID %q, offerUUID %q, username %q, rel %#v, version %d", sourceModelUUID, offerUUID, username, rel, version)
 	expiryTime := a.clock.Now().Add(localOfferPermissionExpiryTime)
 	bakery, err := a.offerBakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
 	if err != nil {
@@ -258,6 +285,134 @@ func (a *AuthContext) CreateRemoteRelationMacaroon(ctx context.Context, sourceMo
 	return offerMacaroon, err
 }
 
+var expiryIn = 15 * time.Minute
+
+func (a *AuthContext) CreateMacaroonForJaaS(ctx context.Context, sourceModelUUID, offerUUID string, username string, relID string, version bakery.Version) (*bakery.Macaroon, error) {
+	logger.Criticalf("CreateMacaroonForJaaS sourceModelUUID %q, offerUUID %q, username %q, relID %q, version %d", sourceModelUUID, offerUUID, username, relID, version)
+	// idURL := `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`
+	idURL := a.offerAccessEndpoint
+
+	// transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	// thirdPartyInfo, err := httpbakery.ThirdPartyInfoForLocation(context.TODO(), &http.Client{Transport: transport}, idURL)
+	// logger.Criticalf("CreateMacaroonForJaaS thirdPartyInfo.Version %q, thirdPartyInfo.PublicKey.Key.String() %q", thirdPartyInfo.Version, thirdPartyInfo.PublicKey.Key.String())
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+
+	// pkCache := bakery.NewThirdPartyStore()
+	// pkLocator := httpbakery.NewThirdPartyLocator(nil, pkCache)
+	// pkCache.AddInfo(idURL, thirdPartyInfo)
+	// bakery := identchecker.NewBakery(identchecker.BakeryParams{
+	// 	Checker: httpbakery.NewChecker(),
+	// 	Locator: pkLocator,
+	// 	Key:     &bakery.KeyPair{Public: thirdPartyInfo.PublicKey},
+	// 	// IdentityClient: identClient,
+	// 	// RootKeyStore: store,
+	// 	// Authorizer: identchecker.ACLAuthorizer{
+	// 	// 	GetACL: func(ctx context.Context, op bakery.Op) ([]string, bool, error) {
+	// 	// 		return []string{identchecker.Everyone}, false, nil
+	// 	// 	},
+	// 	// },
+	// 	Location: idURL,
+	// })
+
+	bakery, err := a.getTestBakery(idURL)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	// bakery, err := a.offerBakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+	conditionParts := []string{
+		"is-consumer",
+		// "user-ales@external",
+		username,
+		// "applicationoffer-{uuid}",
+		names.NewApplicationOfferTag(offerUUID).String(),
+	}
+
+	caveat := checkers.Caveat{
+		Location:  idURL,
+		Condition: strings.Join(conditionParts, " "),
+	}
+	logger.Criticalf("CreateMacaroonForJaaS caveat %#v", caveat)
+	// macaroon, err := bakery.Oven.NewMacaroon(
+	macaroon, err := bakery.NewMacaroon(
+		ctx,
+		version,
+		[]checkers.Caveat{
+			caveat,
+			checkers.TimeBeforeCaveat(a.clock.Now().Add(expiryIn)),
+		},
+		crossModelConsumeOp(offerUUID),
+	)
+	return macaroon, err
+}
+
+func (a *AuthContext) CreateDischargeMacaroonForJaaS(ctx context.Context, sourceModelUUID, offerUUID string, username string, relID string, version bakery.Version) (*bakery.Macaroon, error) {
+	logger.Criticalf("CreateDischargeMacaroonForJaaS sourceModelUUID %q, offerUUID %q, username %q, relID %q, version %d", sourceModelUUID, offerUUID, username, relID, version)
+	// idURL := `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`
+	idURL := a.offerAccessEndpoint
+
+	// transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+	// thirdPartyInfo, err := httpbakery.ThirdPartyInfoForLocation(context.TODO(), &http.Client{Transport: transport}, idURL)
+	// logger.Criticalf("CreateMacaroonForJaaS thirdPartyInfo.Version %q, thirdPartyInfo.PublicKey.Key.String() %q", thirdPartyInfo.Version, thirdPartyInfo.PublicKey.Key.String())
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+
+	// pkCache := bakery.NewThirdPartyStore()
+	// pkLocator := httpbakery.NewThirdPartyLocator(nil, pkCache)
+	// pkCache.AddInfo(idURL, thirdPartyInfo)
+	// bakery := identchecker.NewBakery(identchecker.BakeryParams{
+	// 	Checker: httpbakery.NewChecker(),
+	// 	Locator: pkLocator,
+	// 	Key:     &bakery.KeyPair{Public: thirdPartyInfo.PublicKey},
+	// 	// IdentityClient: identClient,
+	// 	// RootKeyStore: store,
+	// 	// Authorizer: identchecker.ACLAuthorizer{
+	// 	// 	GetACL: func(ctx context.Context, op bakery.Op) ([]string, bool, error) {
+	// 	// 		return []string{identchecker.Everyone}, false, nil
+	// 	// 	},
+	// 	// },
+	// 	Location: idURL,
+	// })
+
+	// bakery, err := a.getTestBakery(idURL)
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+	bakery, err := a.offerBakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	conditionParts := []string{
+		"is-consumer",
+		// "user-ales@external",
+		username,
+		// "applicationoffer-{uuid}",
+		names.NewApplicationOfferTag(offerUUID).String(),
+	}
+
+	caveat := checkers.Caveat{
+		Location:  idURL,
+		Condition: strings.Join(conditionParts, " "),
+	}
+	logger.Criticalf("CreateMacaroonForJaaS caveat %#v", caveat)
+	// macaroon, err := bakery.Oven.NewMacaroon(
+	macaroon, err := bakery.NewMacaroon(
+		ctx,
+		version,
+		[]checkers.Caveat{
+			caveat,
+			checkers.TimeBeforeCaveat(a.clock.Now().Add(expiryIn)),
+		},
+		crossModelConsumeOp(offerUUID),
+	)
+	return macaroon, err
+}
+
 type offerPermissionCheck struct {
 	SourceModelUUID string `yaml:"source-model-uuid"`
 	User            string `yaml:"username"`
@@ -267,8 +422,9 @@ type offerPermissionCheck struct {
 }
 
 type authenticator struct {
-	clock  clock.Clock
-	bakery authentication.ExpirableStorageBakery
+	clock clock.Clock
+	// bakery authentication.ExpirableStorageBakery
+	bakery *bakeryutil.ExpirableStorageBakery
 	ctxt   *AuthContext
 
 	// offerAccessEndpoint holds the URL of the trusted third party
@@ -333,8 +489,27 @@ func (a *authenticator) checkMacaroonCaveats(op bakery.Op, relationId, sourceMod
 
 func (a *authenticator) checkMacaroons(
 	ctx context.Context, mac macaroon.Slice, version bakery.Version, requiredValues map[string]string, op bakery.Op,
-) (map[string]string, error) {
+) (o map[string]string, err error) {
+	defer func() {
+		authlogger.Criticalf("checkMacaroons out %#v, err %#v", o, err)
+	}()
 	authlogger.Debugf("check %d macaroons with required attrs: %v", len(mac), requiredValues)
+	authlogger.Criticalf("checkMacaroons %d macaroons with required attrs: %v", len(mac), requiredValues)
+	for i, mc := range mac {
+		data, err := json.Marshal(mc)
+		authlogger.Criticalf("checkMacaroons err %#v, mac[%d] => \n%s\n==========%#v", err, i, data, mc)
+	}
+	// mc := mac[0]
+
+	// return nil, &apiservererrors.DischargeRequiredError{
+	// 	Cause: &bakery.DischargeRequiredError{
+	// 		// Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`,
+	// 		Message: mc.Location(),
+	// 	},
+	// 	// Macaroon:       mac[0],
+	// 	LegacyMacaroon: mc,
+	// }
+
 	for _, m := range mac {
 		if m == nil {
 			authlogger.Warningf("unexpected nil cross model macaroon")
@@ -342,8 +517,11 @@ func (a *authenticator) checkMacaroons(
 		}
 		authlogger.Debugf("- mac %s", m.Id())
 	}
+	data, err := json.Marshal(mac[0])
+	authlogger.Criticalf("checkMacaroons err %#v, mac[0] => \n%s", err, data)
 	declared := checkers.InferDeclared(coremacaroon.MacaroonNamespace, mac)
 	authlogger.Debugf("check macaroons with declared attrs: %v", declared)
+	authlogger.Criticalf("check macaroons with declared attrs: %v", declared)
 	username, ok := declared[usernameKey]
 	if !ok {
 		return nil, apiservererrors.ErrPerm
@@ -354,9 +532,12 @@ func (a *authenticator) checkMacaroons(
 
 	auth := a.bakery.Auth(mac)
 	ai, err := auth.Allow(ctx, op)
+	// Do we have all the caveats we need?
+	// No? Discharge to JAAS!
 	if err == nil && len(ai.Conditions()) > 0 {
 		if err = a.checkMacaroonCaveats(op, relation, sourceModelUUID, offerUUID); err == nil {
 			authlogger.Debugf("ok macaroon check ok, attr: %v, conditions: %v", declared, ai.Conditions())
+			authlogger.Criticalf("ok macaroon check ok, attr: %v, conditions: %v", declared, ai.Conditions())
 			return declared, nil
 		}
 		if _, ok := err.(*bakery.VerificationError); !ok {
@@ -368,51 +549,79 @@ func (a *authenticator) checkMacaroons(
 	if cause == nil {
 		cause = errors.New("invalid cmr macaroon")
 	}
+	// TODO: if JAAS; then Issue an JAAS Macaroon then discharge from JAAS!!!
 	authlogger.Debugf("generating discharge macaroon because: %v", cause)
+	authlogger.Criticalf("generating discharge macaroon because: %v", cause)
 
-	requiredRelation := requiredValues[relationKey]
+	// requiredRelation := requiredValues[relationKey]
 	requiredOffer := requiredValues[offeruuidKey]
 	requiredSourceModelUUID := requiredValues[sourcemodelKey]
-	authYaml, err := a.ctxt.offerPermissionYaml(requiredSourceModelUUID, username, requiredOffer, requiredRelation, permission.ConsumeAccess)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	bakery, err := a.bakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	keys := []string{usernameKey}
-	for k := range requiredValues {
-		keys = append(keys, k)
-	}
-	m, err := bakery.NewMacaroon(
-		ctx,
-		version,
-		[]checkers.Caveat{
-			checkers.NeedDeclaredCaveat(
-				checkers.Caveat{
-					Location:  a.offerAccessEndpoint,
-					Condition: offerPermissionCaveat + " " + authYaml,
-				},
-				keys...,
-			),
-			checkers.TimeBeforeCaveat(a.clock.Now().Add(localOfferPermissionExpiryTime)),
-		}, op)
+	// authYaml, err := a.ctxt.offerPermissionYaml(requiredSourceModelUUID, username, requiredOffer, requiredRelation, permission.ConsumeAccess)
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+	// bakery, err := a.bakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+	// keys := []string{usernameKey}
+	// for k := range requiredValues {
+	// 	keys = append(keys, k)
+	// }
+	// authlogger.Criticalf("authenticator.checkMacaroons() keys: %v version %v", keys, version)
+	// authlogger.Criticalf("authenticator.checkMacaroons() Condition: %v", offerPermissionCaveat+" "+authYaml)
+	// authlogger.Criticalf("authenticator.checkMacaroons() Location: %v", a.offerAccessEndpoint)
+	// m, err := bakery.NewMacaroon(
+	// 	ctx,
+	// 	version,
+	// 	[]checkers.Caveat{
+	// 		checkers.NeedDeclaredCaveat(
+	// 			checkers.Caveat{
+	// 				Location:  a.offerAccessEndpoint,
+	// 				Condition: offerPermissionCaveat + " " + authYaml,
+	// 			},
+	// 			keys...,
+	// 		),
+	// 		checkers.TimeBeforeCaveat(a.clock.Now().Add(localOfferPermissionExpiryTime)),
+	// 	}, op,
+	// )
 
+	// if err != nil {
+	// 	err = errors.Annotate(err, "cannot create macaroon")
+	// 	authlogger.Errorf("cannot create cross model macaroon: %v", err)
+	// 	return nil, err
+	// }
+
+	m, err := a.ctxt.CreateMacaroonForJaaS(
+		ctx, requiredSourceModelUUID, requiredOffer, username, "", version,
+	)
 	if err != nil {
-		err = errors.Annotate(err, "cannot create macaroon")
-		authlogger.Errorf("cannot create cross model macaroon: %v", err)
-		return nil, err
+		return nil, errors.Trace(err)
 	}
+
 	return nil, &apiservererrors.DischargeRequiredError{
 		Cause:          cause,
 		Macaroon:       m,
 		LegacyMacaroon: m.M(),
 	}
+
+	// m, err := a.ctxt.CreateMacaroonForJaaS(
+	// 	ctx, sourceModelUUID, offerUUID, username, relation, version,
+	// )
+	// if err != nil {
+	// 	return nil, errors.Trace(err)
+	// }
+	// logger.Criticalf("checkMacaroons Macaroon %s", pretty.Sprint(m))
+	// return nil, &apiservererrors.DischargeRequiredError{
+	// 	Cause:          &bakery.DischargeRequiredError{Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`},
+	// 	Macaroon:       m,
+	// 	LegacyMacaroon: m.M(),
+	// }
 }
 
 // CheckOfferMacaroons verifies that the specified macaroons allow access to the offer.
 func (a *authenticator) CheckOfferMacaroons(ctx context.Context, sourceModelUUID, offerUUID string, mac macaroon.Slice, version bakery.Version) (map[string]string, error) {
+	logger.Criticalf("CheckOfferMacaroons sourceModelUUID %q, offerUUID %q, len(mac) %d, version %d", sourceModelUUID, offerUUID, len(mac), version)
 	requiredValues := map[string]string{
 		sourcemodelKey: sourceModelUUID,
 		offeruuidKey:   offerUUID,
@@ -422,6 +631,7 @@ func (a *authenticator) CheckOfferMacaroons(ctx context.Context, sourceModelUUID
 
 // CheckRelationMacaroons verifies that the specified macaroons allow access to the relation.
 func (a *authenticator) CheckRelationMacaroons(ctx context.Context, sourceModelUUID, offerUUID string, relationTag names.Tag, mac macaroon.Slice, version bakery.Version) error {
+	logger.Criticalf("CheckRelationMacaroons sourceModelUUID %q, offerUUID %q, relationTag %q, len(mac) %d, version %d", sourceModelUUID, offerUUID, relationTag, len(mac), version)
 	requiredValues := map[string]string{
 		sourcemodelKey: sourceModelUUID,
 		offeruuidKey:   offerUUID,

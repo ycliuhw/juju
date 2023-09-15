@@ -58,6 +58,7 @@ func (c *Client) handleDischargeError(apiErr error) (macaroon.Slice, error) {
 	if errUnmarshal := errResp.UnmarshalInfo(&info); errUnmarshal != nil {
 		return nil, errors.Annotatef(apiErr, "unable to extract macaroon details from discharge-required response error")
 	}
+	logger.Criticalf("attempting to discharge macaroon due to error: %v, info %#v", apiErr, info)
 
 	m := info.BakeryMacaroon
 	ms, err := c.facade.RawAPICaller().BakeryClient().DischargeAll(c.facade.RawAPICaller().Context(), m)

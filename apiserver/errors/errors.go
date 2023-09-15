@@ -217,6 +217,7 @@ func ServerError(err error) *params.Error {
 			// One macaroon fits all.
 			MacaroonPath: "/",
 		}.AsMap()
+		logger.Criticalf("apiservererrors.ServerError dischargeRequiredError: info %#v", info)
 	case errors.As(err, &upgradeSeriesValidationError):
 		info = params.UpgradeSeriesValidationErrorInfo{
 			Status: upgradeSeriesValidationError.Status,
@@ -257,6 +258,7 @@ func ServerError(err error) *params.Error {
 		code = params.ErrCode(err)
 	}
 
+	logger.Criticalf("apiservererrors.ServerError info %#v", info)
 	return &params.Error{
 		Message: msg,
 		Code:    code,

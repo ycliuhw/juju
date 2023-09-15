@@ -4,6 +4,7 @@
 package application
 
 import (
+	"encoding/json"
 	"fmt"
 	"net"
 	"regexp"
@@ -325,6 +326,10 @@ func (c *addRelationCommand) maybeConsumeOffer(targetClient applicationAddRelati
 	if err != nil {
 		return errors.Trace(err)
 	}
+	logger.Criticalf("consumeDetails: Offer %#v", consumeDetails.Offer)
+	data, err := json.Marshal(consumeDetails.Macaroon)
+	logger.Criticalf("consumeDetails: err %#v, mac \n%s", err, data)
+	logger.Criticalf("consumeDetails: ControllerInfo %#v", consumeDetails.ControllerInfo)
 	// Parse the offer details URL and add the source controller so
 	// things like status can show the original source of the offer.
 	offerURL, err := crossmodel.ParseOfferURL(consumeDetails.Offer.OfferURL)

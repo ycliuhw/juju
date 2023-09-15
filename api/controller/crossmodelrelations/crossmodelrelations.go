@@ -8,6 +8,7 @@ import (
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/loggo"
+	"github.com/kr/pretty"
 	"gopkg.in/macaroon.v2"
 
 	"github.com/juju/juju/api/base"
@@ -55,8 +56,13 @@ func (c *Client) handleError(apiErr error) (macaroon.Slice, error) {
 		return nil, errors.Annotatef(apiErr, "no error info found in discharge-required response error")
 	}
 	logger.Debugf("attempting to discharge macaroon due to error: %v", apiErr)
+	logger.Criticalf("attempting to discharge macaroon due to error: %v", apiErr)
 	var info params.DischargeRequiredErrorInfo
-	if errUnmarshal := errResp.UnmarshalInfo(&info); errUnmarshal != nil {
+	errUnmarshal := errResp.UnmarshalInfo(&info)
+	logger.Criticalf("errUnmarshal %#v, info %s", errUnmarshal, pretty.Sprint(info))
+	data, err := info.Macaroon.MarshalJSON()
+	logger.Criticalf("handleError info.Macaroon.MarshalJSON() err %#v, \n%s", err, string(data))
+	if errUnmarshal != nil {
 		return nil, errors.Annotatef(apiErr, "unable to extract macaroon details from discharge-required response error")
 	}
 
@@ -70,10 +76,12 @@ func (c *Client) handleError(apiErr error) (macaroon.Slice, error) {
 		}
 	}
 	ms, err := c.facade.RawAPICaller().BakeryClient().DischargeAll(c.facade.RawAPICaller().Context(), m)
-	if err == nil && logger.IsTraceEnabled() {
-		logger.Tracef("discharge macaroon ids:")
+	// if err == nil && logger.IsTraceEnabled() {
+	logger.Criticalf("DischargeAll err %#v", err)
+	if err == nil {
+		logger.Criticalf("discharge macaroon ids:")
 		for _, m := range ms {
-			logger.Tracef("  - %v", m.Id())
+			logger.Criticalf("  - %v", m.Id())
 		}
 	}
 	if err != nil {
@@ -126,6 +134,7 @@ func (c *Client) PublishRelationChange(change params.RemoteRelationChangeEvent) 
 
 	// On error, possibly discharge the macaroon and retry.
 	mac, err2 := c.handleError(err)
+	logger.Criticalf("PublishRelationChange error: %#v", err)
 	if err2 != nil {
 		return errors.Trace(err2)
 	}
@@ -161,6 +170,7 @@ func (c *Client) PublishIngressNetworkChange(change params.IngressNetworksChange
 
 	// On error, possibly discharge the macaroon and retry.
 	mac, err2 := c.handleError(err)
+	logger.Criticalf("PublishIngressNetworkChange error: %#v", err)
 	if err2 != nil {
 		return errors.Trace(err2)
 	}
@@ -215,6 +225,7 @@ func (c *Client) RegisterRemoteRelations(relations ...params.RegisterRemoteRelat
 		if res.Error == nil {
 			continue
 		}
+		logger.Criticalf("RegisterRemoteRelations error: %#v", res.Error)
 		mac, err := c.handleError(res.Error)
 		if err != nil {
 			resCopy := res
@@ -281,6 +292,7 @@ func (c *Client) WatchRelationChanges(relationToken, applicationToken string, ma
 	// On error, possibly discharge the macaroon and retry.
 	result := results.Results[0]
 	if result.Error != nil {
+		logger.Criticalf("WatchRelationChanges error: %#v", result.Error)
 		mac, err := c.handleError(result.Error)
 		if err != nil {
 			result.Error.Message = err.Error()
@@ -336,6 +348,7 @@ func (c *Client) WatchEgressAddressesForRelation(remoteRelationArg params.Remote
 	// On error, possibly discharge the macaroon and retry.
 	result := results.Results[0]
 	if result.Error != nil {
+		logger.Criticalf("WatchEgressAddressesForRelation error: %#v", result.Error)
 		mac, err := c.handleError(result.Error)
 		if err != nil {
 			result.Error.Message = err.Error()
@@ -389,6 +402,7 @@ func (c *Client) WatchRelationSuspendedStatus(arg params.RemoteEntityArg) (watch
 	// On error, possibly discharge the macaroon and retry.
 	result := results.Results[0]
 	if result.Error != nil {
+		logger.Criticalf("WatchRelationSuspendedStatus error: %#v", result.Error)
 		mac, err := c.handleError(result.Error)
 		if err != nil {
 			result.Error.Message = err.Error()
@@ -443,6 +457,7 @@ func (c *Client) WatchOfferStatus(arg params.OfferArg) (watcher.OfferStatusWatch
 	result := results.Results[0]
 	if result.Error != nil {
 		mac, err := c.handleError(result.Error)
+		logger.Criticalf("WatchOfferStatus handleError(%#v): %v, mac %#v", result.Error, err, mac)
 		if err != nil {
 			result.Error.Message = err.Error()
 			return nil, result.Error
@@ -505,6 +520,7 @@ func (c *Client) WatchConsumedSecretsChanges(applicationToken, relationToken str
 	// On error, possibly discharge the macaroon and retry.
 	result := results.Results[0]
 	if result.Error != nil {
+		logger.Criticalf("WatchConsumedSecretsChanges error: %#v", result.Error)
 		mac, err := c.handleError(result.Error)
 		if err != nil {
 			result.Error.Message = err.Error()

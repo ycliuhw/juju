@@ -26,6 +26,7 @@ func HasPermission(
 	accessGetter UserAccessFunc, utag names.Tag,
 	requestedPermission permission.Access, target names.Tag,
 ) (bool, error) {
+	// logger.Criticalf("HasPermission requestedPermission %q, target %q", requestedPermission, target)
 	var validate func(permission.Access) error
 	switch target.Kind() {
 	case names.ControllerTagKind:

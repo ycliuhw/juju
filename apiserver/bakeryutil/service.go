@@ -13,7 +13,7 @@ import (
 	"github.com/juju/loggo"
 	"gopkg.in/macaroon.v2"
 
-	"github.com/juju/juju/apiserver/authentication"
+	// "github.com/juju/juju/apiserver/authentication"
 	"github.com/juju/juju/state/bakerystorage"
 )
 
@@ -43,7 +43,7 @@ type ExpirableStorageBakery struct {
 }
 
 // ExpireStorageAfter implements authentication.ExpirableStorageBakery.
-func (s *ExpirableStorageBakery) ExpireStorageAfter(t time.Duration) (authentication.ExpirableStorageBakery, error) {
+func (s *ExpirableStorageBakery) ExpireStorageAfter(t time.Duration) (*ExpirableStorageBakery, error) {
 	store := s.Store.ExpireAfter(t)
 	service := bakery.New(bakery.BakeryParams{
 		Location:     s.Location,

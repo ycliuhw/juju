@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/juju/errors"
+	"github.com/juju/loggo"
 	"github.com/juju/names/v4"
 	"github.com/lestrrat-go/jwx/v2/jwk"
 	"github.com/lestrrat-go/jwx/v2/jwt"
@@ -20,6 +21,8 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/core/permission"
 )
+
+var logger = loggo.GetLogger("juju.apiserver.authentication.jwt")
 
 type Authenticator interface {
 	authentication.RequestAuthenticator
@@ -113,6 +116,7 @@ func (p *PermissionDelegator) SubjectPermissions(
 	e authentication.Entity,
 	subject names.Tag,
 ) (a permission.Access, err error) {
+	logger.Criticalf("SubjectPermissions e.Tag() %q", e.Tag())
 	if e.Tag().Id() == common.EveryoneTagName {
 		// JWT auth process does not support everyone@external.
 		// The everyone@external will be never included in the JWT token at least for now.
@@ -199,6 +203,7 @@ func userFromToken(token jwt.Token) (TokenEntity, error) {
 // provided subject. If no permission is found permission.NoAccess will be
 // returned.
 func PermissionFromToken(token jwt.Token, subject names.Tag) (permission.Access, error) {
+	logger.Criticalf("PermissionFromToken subject %q", subject)
 	var validate func(permission.Access) error
 	switch subject.Kind() {
 	case names.ControllerTagKind:

@@ -186,6 +186,7 @@ done:
 			// This string is hard coded in the bakery library.
 			idx := strings.Index(line, "cannot get discharge from")
 			if idx >= 0 {
+				// Issue discharge required error like this.!!!!
 				return apiservererrors.ServerError(&apiservererrors.DischargeRequiredError{
 					Cause: &bakery.DischargeRequiredError{Message: line[idx:]},
 				})
