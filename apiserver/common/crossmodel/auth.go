@@ -499,6 +499,9 @@ func (a *authenticator) checkMacaroons(
 	for i, mc := range mac {
 		data, err := json.Marshal(mc)
 		authlogger.Criticalf("checkMacaroons err %#v, mac[%d] => \n%s\n==========\n%s", err, i, data, pretty.Sprint(mc))
+		for j, cav := range mc.Caveats() {
+			logger.Criticalf("checkMacaroons mac[%d] caveat[%d] %q", i, j, string(cav.Id))
+		}
 	}
 
 	// return nil, &apiservererrors.DischargeRequiredError{
