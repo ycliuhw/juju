@@ -438,6 +438,7 @@ func (api *OffersAPI) getConsumeDetails(user names.UserTag, urls params.OfferURL
 	results := make([]params.ConsumeOfferDetailsResult, len(urls.OfferURLs))
 
 	offers, err := api.getApplicationOffers(user, urls)
+	logger.Criticalf("getApplicationOffers(%q), offers %#v, err %#v", urls.OfferURLs, offers, err)
 	if err != nil {
 		return consumeResults, apiservererrors.ServerError(err)
 	}
@@ -464,11 +465,13 @@ func (api *OffersAPI) getConsumeDetails(user names.UserTag, urls params.OfferURL
 		results[i].ControllerInfo = controllerInfo
 
 		modelTag, err := names.ParseModelTag(offerDetails.SourceModelTag)
+		logger.Criticalf("modelTag %#v, err %#v", modelTag, err)
 		if err != nil {
 			results[i].Error = apiservererrors.ServerError(err)
 			continue
 		}
 		backend, releaser, err := api.StatePool.Get(modelTag.Id())
+		logger.Criticalf("backend %#v, releaser %#v, err %#v", backend, releaser, err)
 		if err != nil {
 			results[i].Error = apiservererrors.ServerError(err)
 			continue
@@ -476,6 +479,7 @@ func (api *OffersAPI) getConsumeDetails(user names.UserTag, urls params.OfferURL
 		defer releaser()
 
 		err = api.checkAdmin(user, backend)
+		logger.Criticalf("checkAdmin err %#v", err)
 		if err != nil && !errors.Is(err, authentication.ErrorEntityMissingPermission) {
 			results[i].Error = apiservererrors.ServerError(err)
 			continue
@@ -488,12 +492,14 @@ func (api *OffersAPI) getConsumeDetails(user names.UserTag, urls params.OfferURL
 				results[i].Error = apiservererrors.ServerError(err)
 				continue
 			}
+			logger.Criticalf("EntityHasPermission err %#v, %v", err, errors.Is(err, authentication.ErrorEntityMissingPermission))
 			if err != nil {
 				// This logic is purely for JaaS.
 				// Jaas has already checked permissions of args.UserTag in their side, so we don't need to check it again.
 				// But as a TODO, we need to set the ConsumeOfferMacaroon's expiry time to 0 to force go to
 				// discharge flow once they got the macaroon.
 				err := api.checkControllerAdmin()
+				logger.Criticalf("checkControllerAdmin err %#v", err)
 				if err != nil {
 					results[i].Error = apiservererrors.ServerError(err)
 					continue

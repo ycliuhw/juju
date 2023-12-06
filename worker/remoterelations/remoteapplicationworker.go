@@ -593,6 +593,7 @@ func (w *remoteApplicationWorker) processConsumingRelation(
 	key string,
 	remoteRelation *params.RemoteRelation,
 ) error {
+	// ?????
 
 	// We have not seen the relation before, make
 	// sure it is registered on the offering side.

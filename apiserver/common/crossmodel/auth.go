@@ -13,12 +13,14 @@ import (
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/checkers"
+
 	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/identchecker"
 	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
 	"github.com/kr/pretty"
+
 	// "github.com/kr/pretty"
 	"gopkg.in/macaroon.v2"
 	"gopkg.in/yaml.v2"

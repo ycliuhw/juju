@@ -128,6 +128,7 @@ func (p *PermissionDelegator) SubjectPermissions(
 	}
 	// We need to make very sure that the entity the request pertains to
 	// is the same entity this function was seeded with.
+	logger.Criticalf("SubjectPermissions tokenEntity.Tag() %q, e.Tag() %q", tokenEntity.Tag(), e.Tag())
 	if tokenEntity.Tag().String() != e.Tag().String() {
 		err = fmt.Errorf(
 			"%w to use token permissions for one entity on another",
@@ -202,7 +203,10 @@ func userFromToken(token jwt.Token) (TokenEntity, error) {
 // PermissionFromToken will extract the permission a jwt token has for the
 // provided subject. If no permission is found permission.NoAccess will be
 // returned.
-func PermissionFromToken(token jwt.Token, subject names.Tag) (permission.Access, error) {
+func PermissionFromToken(token jwt.Token, subject names.Tag) (a permission.Access, err error) {
+	defer func() {
+		logger.Criticalf("PermissionFromToken returned => %q %#v", a, err)
+	}()
 	logger.Criticalf("PermissionFromToken subject %q", subject)
 	var validate func(permission.Access) error
 	switch subject.Kind() {
@@ -219,6 +223,7 @@ func PermissionFromToken(token jwt.Token, subject names.Tag) (permission.Access,
 	if !ok || len(accessClaims) == 0 {
 		return permission.NoAccess, nil
 	}
+	logger.Criticalf("PermissionFromToken accessClaims %#v", accessClaims)
 	access, ok := accessClaims[subject.String()]
 	if !ok {
 		return permission.NoAccess, nil
