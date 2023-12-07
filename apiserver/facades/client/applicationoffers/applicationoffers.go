@@ -414,12 +414,17 @@ func (api *OffersAPI) FindApplicationOffers(filters params.OfferFilters) (params
 
 // GetConsumeDetails returns the details necessary to pass to another model
 // to allow the specified args user to consume the offers represented by the args URLs.
-func (api *OffersAPI) GetConsumeDetails(args params.ConsumeOfferDetailsArg) (params.ConsumeOfferDetailsResults, error) {
+func (api *OffersAPI) GetConsumeDetails(args params.ConsumeOfferDetailsArg) (_ params.ConsumeOfferDetailsResults, err error) {
+	defer func() {
+		logger.Criticalf("GetConsumeDetails err %#v", err)
+	}()
 	user := api.Authorizer.GetAuthTag().(names.UserTag)
+	logger.Criticalf("GetConsumeDetails args %#v", args)
 	// Prefer args user if provided.
 	if args.UserTag != "" {
 		// Only controller admins can get consume details for another user.
 		err := api.checkControllerAdmin()
+		logger.Criticalf("checkControllerAdmin err %#v", err)
 		if err != nil {
 			return params.ConsumeOfferDetailsResults{}, errors.Trace(err)
 		}

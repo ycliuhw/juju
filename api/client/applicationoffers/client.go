@@ -11,6 +11,7 @@ import (
 	"github.com/juju/names/v4"
 
 	"github.com/juju/juju/api/base"
+	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/core/crossmodel"
 	"github.com/juju/juju/core/permission"
 	"github.com/juju/juju/core/relation"
@@ -284,7 +285,8 @@ func (c *Client) GetConsumeDetails(urlStr string) (params.ConsumeOfferDetails, e
 
 	theOne := result[0]
 	if theOne.Error != nil {
-		return params.ConsumeOfferDetails{}, errors.Trace(theOne.Error)
+		logger.Criticalf("error getting consume details: %#v", apiservererrors.RestoreError(theOne.Error))
+		return params.ConsumeOfferDetails{}, errors.Trace(apiservererrors.RestoreError(theOne.Error))
 	}
 	return params.ConsumeOfferDetails{
 		Offer:          theOne.Offer,
