@@ -5,23 +5,32 @@ package apiserver
 
 import (
 	"context"
+	"strings"
+
 	// "encoding/json"
 	// "io"
 	"crypto/tls"
 	"net/http"
 	"time"
+
 	// "net/url"
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/checkers"
+	"github.com/kr/pretty"
+
 	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/identchecker"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	"github.com/juju/errors"
+	"github.com/juju/names/v4"
+
 	// "github.com/kr/pretty"
 
 	"github.com/juju/juju/apiserver/apiserverhttp"
 	"github.com/juju/juju/apiserver/bakeryutil"
 	"github.com/juju/juju/apiserver/common/crossmodel"
+	apiservererrors "github.com/juju/juju/apiserver/errors"
+
 	// apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/core/macaroon"
 	"github.com/juju/juju/state"
@@ -219,6 +228,42 @@ func getPublicKey(idURL string) (*bakery.KeyPair, error) {
 // 	return &bakery.KeyPair{Public: bakery.PublicKey{bakery.Key(data.PublicKey)}}, nil
 // }
 
+// func (h *localOfferAuthHandler) checkThirdPartyCaveat(stdctx context.Context, req *http.Request, cavInfo *bakery.ThirdPartyCaveatInfo, token *httpbakery.DischargeToken) (_ []checkers.Caveat, err error) {
+// 	defer func() {
+// 		logger.Criticalf(
+// 			"localOfferAuthHandler.checkThirdPartyCaveat Condition %q, err %#v", string(cavInfo.Condition), err,
+// 		)
+// 		if token != nil {
+// 			logger.Criticalf("localOfferAuthHandler.checkThirdPartyCaveat token.Kind %q, token.Value %q", token.Kind, string(token.Value))
+// 		}
+// 	}()
+// 	logger.Debugf("check offer third party caveat %q", cavInfo.Condition)
+// 	logger.Criticalf("localOfferAuthHandler.checkThirdPartyCaveat caveat.Condition %q", cavInfo.Condition)
+// 	details, err := h.authCtx.CheckOfferAccessCaveat(string(cavInfo.Condition))
+// 	if err != nil {
+// 		return nil, errors.Trace(err)
+// 	}
+
+// 	firstPartyCaveats, err := h.authCtx.CheckLocalAccessRequest(details)
+// 	if err != nil {
+// 		return nil, errors.Trace(err)
+// 	}
+// 	return firstPartyCaveats, nil
+
+// 	// m, err := h.authCtx.CreateMacaroonForJaaS(
+// 	// 	stdctx, details.SourceModelUUID, details.OfferUUID, details.User, details.Relation, 3,
+// 	// )
+// 	// if err != nil {
+// 	// 	return nil, errors.Trace(err)
+// 	// }
+// 	// logger.Criticalf("check offer third party caveat %s", pretty.Sprint(m))
+// 	// return nil, &apiservererrors.DischargeRequiredError{
+// 	// 	Cause:          &bakery.DischargeRequiredError{Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`},
+// 	// 	Macaroon:       m,
+// 	// 	LegacyMacaroon: m.M(),
+// 	// }
+// }
+
 func (h *localOfferAuthHandler) checkThirdPartyCaveat(stdctx context.Context, req *http.Request, cavInfo *bakery.ThirdPartyCaveatInfo, token *httpbakery.DischargeToken) (_ []checkers.Caveat, err error) {
 	defer func() {
 		logger.Criticalf(
@@ -231,26 +276,57 @@ func (h *localOfferAuthHandler) checkThirdPartyCaveat(stdctx context.Context, re
 	logger.Debugf("check offer third party caveat %q", cavInfo.Condition)
 	logger.Criticalf("localOfferAuthHandler.checkThirdPartyCaveat caveat.Condition %q", cavInfo.Condition)
 	details, err := h.authCtx.CheckOfferAccessCaveat(string(cavInfo.Condition))
+	logger.Criticalf("checkThirdPartyCaveat CheckOfferAccessCaveat(%q): details %#v, err %#v", cavInfo.Condition, details, err)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
 
-	firstPartyCaveats, err := h.authCtx.CheckLocalAccessRequest(details)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	return firstPartyCaveats, nil
-
-	// m, err := h.authCtx.CreateMacaroonForJaaS(
-	// 	stdctx, details.SourceModelUUID, details.OfferUUID, details.User, details.Relation, 3,
-	// )
+	// firstPartyCaveats, err := h.authCtx.CheckLocalAccessRequest(details)
 	// if err != nil {
 	// 	return nil, errors.Trace(err)
 	// }
-	// logger.Criticalf("check offer third party caveat %s", pretty.Sprint(m))
-	// return nil, &apiservererrors.DischargeRequiredError{
-	// 	Cause:          &bakery.DischargeRequiredError{Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`},
-	// 	Macaroon:       m,
-	// 	LegacyMacaroon: m.M(),
-	// }
+	// return firstPartyCaveats, nil
+
+	declared := make(map[string]string)
+	macaroons := httpbakery.RequestMacaroons(req) // ???? empty ????
+	logger.Criticalf("checkThirdPartyCaveat len(macaroons): %d", len(macaroons))
+	for i, mac := range macaroons {
+		d := checkers.InferDeclared(macaroon.MacaroonNamespace, mac)
+		logger.Criticalf("checkThirdPartyCaveat mac[%d] InferDeclared: %#v", i, d)
+		for k, v := range d {
+			declared[k] = v
+		}
+	}
+	logger.Criticalf("check macaroons with declared attrs: %#v", declared)
+
+	consumer, ok := declared["consumer"]
+	offerUUID := strings.TrimPrefix(consumer, names.ApplicationOfferTagKind+"-")
+	if !ok || offerUUID != details.OfferUUID {
+		m, err := h.authCtx.CreateMacaroonForJaaS(
+			stdctx, details.SourceModelUUID, details.OfferUUID, details.User, details.Relation, 3,
+		)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		logger.Criticalf("checkMacaroons Macaroon %s", pretty.Sprint(m))
+		return nil, &apiservererrors.DischargeRequiredError{
+			Cause:          &bakery.DischargeRequiredError{Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`},
+			Macaroon:       m,
+			LegacyMacaroon: m.M(),
+		}
+	}
+	details.OfferUUID = offerUUID
+	expiryTime := 3 * time.Minute
+	firstPartyCaveats := []checkers.Caveat{
+		checkers.DeclaredCaveat("source-model-uuid", details.SourceModelUUID),
+		checkers.DeclaredCaveat("offer-uuid", details.OfferUUID),
+		checkers.DeclaredCaveat("username", details.User),
+		checkers.TimeBeforeCaveat(h.authCtx.Clock().Now().Add(expiryTime)),
+	}
+	logger.Criticalf("checkThirdPartyCaveat details 2222: %#v", details)
+	logger.Criticalf("checkThirdPartyCaveat firstPartyCaveats: %#v", firstPartyCaveats)
+	if details.Relation != "" {
+		firstPartyCaveats = append(firstPartyCaveats, checkers.DeclaredCaveat("relation-key", details.Relation))
+	}
+	return firstPartyCaveats, nil
 }

@@ -5,23 +5,24 @@ package crossmodel
 
 import (
 	"context"
+	"encoding/json"
 	"runtime"
 
 	// "crypto/tls"
-	"encoding/json"
+
 	// "net/http"
 	"strings"
 	"time"
 
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery"
 	"github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/checkers"
+	"github.com/kr/pretty"
 
 	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/bakery/identchecker"
 	// "github.com/go-macaroon-bakery/macaroon-bakery/v3/httpbakery"
 	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/names/v4"
-	"github.com/kr/pretty"
 
 	// "github.com/kr/pretty"
 	"gopkg.in/macaroon.v2"
@@ -111,6 +112,10 @@ func (a *AuthContext) WithClock(clock clock.Clock) *AuthContext {
 	ctxtCopy := *a
 	ctxtCopy.clock = clock
 	return &ctxtCopy
+}
+
+func (a *AuthContext) Clock() clock.Clock {
+	return a.clock
 }
 
 // WithDischargeURL create an auth context based on this context and used
@@ -525,16 +530,6 @@ func (a *authenticator) checkMacaroons(
 			logger.Criticalf("checkMacaroons mac[%d] caveat[%d] %q", i, j, string(cav.Id))
 		}
 	}
-
-	// return nil, &apiservererrors.DischargeRequiredError{
-	// 	Cause: &bakery.DischargeRequiredError{
-	// 		// Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`,
-	// 		Message: mc.Location(),
-	// 	},
-	// 	// Macaroon:       mac[0],
-	// 	LegacyMacaroon: mc,
-	// }
-
 	for _, m := range mac {
 		if m == nil {
 			authlogger.Warningf("unexpected nil cross model macaroon")
@@ -546,25 +541,6 @@ func (a *authenticator) checkMacaroons(
 	declared := checkers.InferDeclared(coremacaroon.MacaroonNamespace, mac)
 	authlogger.Debugf("check macaroons with declared attrs: %v", declared)
 	authlogger.Criticalf("check macaroons with declared 1: %s", pretty.Sprint(declared))
-
-	// declaredFromJAAS := checkers.InferDeclared(nil, mac)
-	// authlogger.Criticalf("check macaroons with declaredFromJAAS: %s", pretty.Sprint(declaredFromJAAS))
-	if consumedOfferTagStr, ok := declared["consumer"]; ok {
-		authlogger.Criticalf(
-			"check macaroons consumedOfferTagStr %s, %T, names.IsValidApplicationOffer(consumedOfferTagStr) %v",
-			consumedOfferTagStr, consumedOfferTagStr, names.IsValidApplicationOffer(consumedOfferTagStr),
-		)
-
-		// offerTag, err := names.ParseApplicationOfferTag(consumedOfferTagStr) // ????!!!
-		offerUUID := strings.TrimPrefix(consumedOfferTagStr, names.ApplicationOfferTagKind+"-")
-		authlogger.Criticalf("check macaroons consumedOfferTagStr %q, offerUUID: %#v", consumedOfferTagStr, offerUUID)
-		declared[usernameKey] = "kelvin.liu@external"
-		declared[sourcemodelKey] = "8f3bff91-2a60-48a6-8d91-47f433f3fdb6"
-		declared[offeruuidKey] = offerUUID
-
-		declared[relationKey] = "dummy-source:sink remote-fb19b1d3fc0748968dc434aa45720050:source"
-	}
-	authlogger.Criticalf("check macaroons with declared 2: %s", pretty.Sprint(declared))
 	username, ok := declared[usernameKey]
 	if !ok {
 		return nil, apiservererrors.ErrPerm
@@ -576,13 +552,8 @@ func (a *authenticator) checkMacaroons(
 	auth := a.bakery.Auth(mac)
 	ai, err := auth.Allow(ctx, op)
 	authlogger.Criticalf("checkMacaroons auth.Allow err %#v, ai %#v, ai.Conditions() %#v", err, ai, ai.Conditions())
-	// Do we have all the caveats we need?
-	// No? Discharge to JAAS!
 	if err == nil && len(ai.Conditions()) > 0 {
-		authlogger.Criticalf("ok macaroon check ok, attr: %s, conditions: %s", pretty.Sprint(declared), pretty.Sprint(ai.Conditions()))
-		err = a.checkMacaroonCaveats(op, relation, sourceModelUUID, offerUUID)
-		authlogger.Criticalf("checkMacaroons checkMacaroonCaveats(%v, %q, %q, %q) err %#v", op, relation, sourceModelUUID, offerUUID, err)
-		if err == nil {
+		if err = a.checkMacaroonCaveats(op, relation, sourceModelUUID, offerUUID); err == nil {
 			authlogger.Debugf("ok macaroon check ok, attr: %v, conditions: %v", declared, ai.Conditions())
 			return declared, nil
 		}
@@ -595,75 +566,205 @@ func (a *authenticator) checkMacaroons(
 	if cause == nil {
 		cause = errors.New("invalid cmr macaroon")
 	}
-	// TODO: if JAAS; then Issue an JAAS Macaroon then discharge from JAAS!!!
 	authlogger.Debugf("generating discharge macaroon because: %v", cause)
-	authlogger.Criticalf("generating discharge macaroon because: %v", cause)
 
-	// requiredRelation := requiredValues[relationKey]
+	requiredRelation := requiredValues[relationKey]
 	requiredOffer := requiredValues[offeruuidKey]
 	requiredSourceModelUUID := requiredValues[sourcemodelKey]
-	// authYaml, err := a.ctxt.offerPermissionYaml(requiredSourceModelUUID, username, requiredOffer, requiredRelation, permission.ConsumeAccess)
-	// if err != nil {
-	// 	return nil, errors.Trace(err)
-	// }
-	// bakery, err := a.bakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
-	// if err != nil {
-	// 	return nil, errors.Trace(err)
-	// }
-	// keys := []string{usernameKey}
-	// for k := range requiredValues {
-	// 	keys = append(keys, k)
-	// }
-	// authlogger.Criticalf("authenticator.checkMacaroons() keys: %v version %v", keys, version)
-	// authlogger.Criticalf("authenticator.checkMacaroons() Condition: %v", offerPermissionCaveat+" "+authYaml)
-	// authlogger.Criticalf("authenticator.checkMacaroons() Location: %v", a.offerAccessEndpoint)
-	// m, err := bakery.NewMacaroon(
-	// 	ctx,
-	// 	version,
-	// 	[]checkers.Caveat{
-	// 		checkers.NeedDeclaredCaveat(
-	// 			checkers.Caveat{
-	// 				Location:  a.offerAccessEndpoint,
-	// 				Condition: offerPermissionCaveat + " " + authYaml,
-	// 			},
-	// 			keys...,
-	// 		),
-	// 		checkers.TimeBeforeCaveat(a.clock.Now().Add(localOfferPermissionExpiryTime)),
-	// 	}, op,
-	// )
-
-	// if err != nil {
-	// 	err = errors.Annotate(err, "cannot create macaroon")
-	// 	authlogger.Errorf("cannot create cross model macaroon: %v", err)
-	// 	return nil, err
-	// }
-
-	m, err := a.ctxt.CreateMacaroonForJaaS(
-		ctx, requiredSourceModelUUID, requiredOffer, username, "", version,
-	)
+	authYaml, err := a.ctxt.offerPermissionYaml(requiredSourceModelUUID, username, requiredOffer, requiredRelation, permission.ConsumeAccess)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
+	bakery, err := a.bakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	keys := []string{usernameKey}
+	for k := range requiredValues {
+		keys = append(keys, k)
+	}
+	m, err := bakery.NewMacaroon(
+		ctx,
+		version,
+		[]checkers.Caveat{
+			checkers.NeedDeclaredCaveat(
+				checkers.Caveat{
+					Location:  a.offerAccessEndpoint,
+					Condition: offerPermissionCaveat + " " + authYaml,
+				},
+				keys...,
+			),
+			checkers.TimeBeforeCaveat(a.clock.Now().Add(localOfferPermissionExpiryTime)),
+		}, op)
 
+	if err != nil {
+		err = errors.Annotate(err, "cannot create macaroon")
+		authlogger.Errorf("cannot create cross model macaroon: %v", err)
+		return nil, err
+	}
 	return nil, &apiservererrors.DischargeRequiredError{
 		Cause:          cause,
 		Macaroon:       m,
 		LegacyMacaroon: m.M(),
 	}
-
-	// m, err := a.ctxt.CreateMacaroonForJaaS(
-	// 	ctx, sourceModelUUID, offerUUID, username, relation, version,
-	// )
-	// if err != nil {
-	// 	return nil, errors.Trace(err)
-	// }
-	// logger.Criticalf("checkMacaroons Macaroon %s", pretty.Sprint(m))
-	// return nil, &apiservererrors.DischargeRequiredError{
-	// 	Cause:          &bakery.DischargeRequiredError{Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`},
-	// 	Macaroon:       m,
-	// 	LegacyMacaroon: m.M(),
-	// }
 }
+
+// func (a *authenticator) checkMacaroons(
+// 	ctx context.Context, mac macaroon.Slice, version bakery.Version, requiredValues map[string]string, op bakery.Op,
+// ) (o map[string]string, err error) {
+// 	defer func() {
+// 		authlogger.Criticalf("checkMacaroons out %#v, err %#v", o, err)
+// 	}()
+// 	authlogger.Debugf("check %d macaroons with required attrs: %v", len(mac), requiredValues)
+// 	pc, file, line, ok := runtime.Caller(1)
+// 	authlogger.Criticalf("checkMacaroons CALLED by pc %#v, file %q, line %d, ok %v", pc, file, line, ok)
+// 	authlogger.Criticalf("checkMacaroons %d macaroons(called by %s:%d) with required attrs: %#v, op %#v", len(mac), file, line, requiredValues, op)
+// 	for i, mc := range mac {
+// 		data, err := json.Marshal(mc)
+// 		authlogger.Criticalf("checkMacaroons err %#v, mac[%d] => \n%s\n==========\n%s", err, i, data, pretty.Sprint(mc))
+// 		for j, cav := range mc.Caveats() {
+// 			logger.Criticalf("checkMacaroons mac[%d] caveat[%d] %q", i, j, string(cav.Id))
+// 		}
+// 	}
+
+// 	// return nil, &apiservererrors.DischargeRequiredError{
+// 	// 	Cause: &bakery.DischargeRequiredError{
+// 	// 		// Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`,
+// 	// 		Message: mc.Location(),
+// 	// 	},
+// 	// 	// Macaroon:       mac[0],
+// 	// 	LegacyMacaroon: mc,
+// 	// }
+
+// 	for _, m := range mac {
+// 		if m == nil {
+// 			authlogger.Warningf("unexpected nil cross model macaroon")
+// 			continue
+// 		}
+// 		authlogger.Debugf("- mac %s", m.Id())
+// 		authlogger.Criticalf("- mac %s", m.Id())
+// 	}
+// 	declared := checkers.InferDeclared(coremacaroon.MacaroonNamespace, mac)
+// 	authlogger.Debugf("check macaroons with declared attrs: %v", declared)
+// 	authlogger.Criticalf("check macaroons with declared 1: %s", pretty.Sprint(declared))
+
+// 	// declaredFromJAAS := checkers.InferDeclared(nil, mac)
+// 	// authlogger.Criticalf("check macaroons with declaredFromJAAS: %s", pretty.Sprint(declaredFromJAAS))
+// 	if consumedOfferTagStr, ok := declared["consumer"]; ok {
+// 		authlogger.Criticalf(
+// 			"check macaroons consumedOfferTagStr %s, %T, names.IsValidApplicationOffer(consumedOfferTagStr) %v",
+// 			consumedOfferTagStr, consumedOfferTagStr, names.IsValidApplicationOffer(consumedOfferTagStr),
+// 		)
+
+// 		// offerTag, err := names.ParseApplicationOfferTag(consumedOfferTagStr) // ????!!!
+// 		offerUUID := strings.TrimPrefix(consumedOfferTagStr, names.ApplicationOfferTagKind+"-")
+// 		authlogger.Criticalf("check macaroons consumedOfferTagStr %q, offerUUID: %#v", consumedOfferTagStr, offerUUID)
+// 		declared[usernameKey] = "kelvin.liu@external"
+// 		declared[sourcemodelKey] = "8f3bff91-2a60-48a6-8d91-47f433f3fdb6"
+// 		declared[offeruuidKey] = offerUUID
+
+// 		declared[relationKey] = "dummy-source:sink remote-fb19b1d3fc0748968dc434aa45720050:source"
+// 	}
+// 	authlogger.Criticalf("check macaroons with declared 2: %s", pretty.Sprint(declared))
+// 	username, ok := declared[usernameKey]
+// 	if !ok {
+// 		return nil, apiservererrors.ErrPerm
+// 	}
+// 	relation := declared[relationKey]
+// 	sourceModelUUID := declared[sourcemodelKey]
+// 	offerUUID := declared[offeruuidKey]
+
+// 	auth := a.bakery.Auth(mac)
+// 	ai, err := auth.Allow(ctx, op)
+// 	authlogger.Criticalf("checkMacaroons auth.Allow err %#v, ai %#v, ai.Conditions() %#v", err, ai, ai.Conditions())
+// 	// Do we have all the caveats we need?
+// 	// No? Discharge to JAAS!
+// 	if err == nil && len(ai.Conditions()) > 0 {
+// 		authlogger.Criticalf("ok macaroon check ok, attr: %s, conditions: %s", pretty.Sprint(declared), pretty.Sprint(ai.Conditions()))
+// 		err = a.checkMacaroonCaveats(op, relation, sourceModelUUID, offerUUID)
+// 		authlogger.Criticalf("checkMacaroons checkMacaroonCaveats(%v, %q, %q, %q) err %#v", op, relation, sourceModelUUID, offerUUID, err)
+// 		if err == nil {
+// 			authlogger.Debugf("ok macaroon check ok, attr: %v, conditions: %v", declared, ai.Conditions())
+// 			return declared, nil
+// 		}
+// 		if _, ok := err.(*bakery.VerificationError); !ok {
+// 			return nil, apiservererrors.ErrPerm
+// 		}
+// 	}
+
+// 	cause := err
+// 	if cause == nil {
+// 		cause = errors.New("invalid cmr macaroon")
+// 	}
+// 	// TODO: if JAAS; then Issue an JAAS Macaroon then discharge from JAAS!!!
+// 	authlogger.Debugf("generating discharge macaroon because: %v", cause)
+// 	authlogger.Criticalf("generating discharge macaroon because: %v", cause)
+
+// 	// requiredRelation := requiredValues[relationKey]
+// 	requiredOffer := requiredValues[offeruuidKey]
+// 	requiredSourceModelUUID := requiredValues[sourcemodelKey]
+// 	// authYaml, err := a.ctxt.offerPermissionYaml(requiredSourceModelUUID, username, requiredOffer, requiredRelation, permission.ConsumeAccess)
+// 	// if err != nil {
+// 	// 	return nil, errors.Trace(err)
+// 	// }
+// 	// bakery, err := a.bakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
+// 	// if err != nil {
+// 	// 	return nil, errors.Trace(err)
+// 	// }
+// 	// keys := []string{usernameKey}
+// 	// for k := range requiredValues {
+// 	// 	keys = append(keys, k)
+// 	// }
+// 	// authlogger.Criticalf("authenticator.checkMacaroons() keys: %v version %v", keys, version)
+// 	// authlogger.Criticalf("authenticator.checkMacaroons() Condition: %v", offerPermissionCaveat+" "+authYaml)
+// 	// authlogger.Criticalf("authenticator.checkMacaroons() Location: %v", a.offerAccessEndpoint)
+// 	// m, err := bakery.NewMacaroon(
+// 	// 	ctx,
+// 	// 	version,
+// 	// 	[]checkers.Caveat{
+// 	// 		checkers.NeedDeclaredCaveat(
+// 	// 			checkers.Caveat{
+// 	// 				Location:  a.offerAccessEndpoint,
+// 	// 				Condition: offerPermissionCaveat + " " + authYaml,
+// 	// 			},
+// 	// 			keys...,
+// 	// 		),
+// 	// 		checkers.TimeBeforeCaveat(a.clock.Now().Add(localOfferPermissionExpiryTime)),
+// 	// 	}, op,
+// 	// )
+
+// 	// if err != nil {
+// 	// 	err = errors.Annotate(err, "cannot create macaroon")
+// 	// 	authlogger.Errorf("cannot create cross model macaroon: %v", err)
+// 	// 	return nil, err
+// 	// }
+
+// 	m, err := a.ctxt.CreateMacaroonForJaaS(
+// 		ctx, requiredSourceModelUUID, requiredOffer, username, "", version,
+// 	)
+// 	if err != nil {
+// 		return nil, errors.Trace(err)
+// 	}
+
+// 	return nil, &apiservererrors.DischargeRequiredError{
+// 		Cause:          cause,
+// 		Macaroon:       m,
+// 		LegacyMacaroon: m.M(),
+// 	}
+
+// 	// m, err := a.ctxt.CreateMacaroonForJaaS(
+// 	// 	ctx, sourceModelUUID, offerUUID, username, relation, version,
+// 	// )
+// 	// if err != nil {
+// 	// 	return nil, errors.Trace(err)
+// 	// }
+// 	// logger.Criticalf("checkMacaroons Macaroon %s", pretty.Sprint(m))
+// 	// return nil, &apiservererrors.DischargeRequiredError{
+// 	// 	Cause:          &bakery.DischargeRequiredError{Message: `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`},
+// 	// 	Macaroon:       m,
+// 	// 	LegacyMacaroon: m.M(),
+// 	// }
+// }
 
 // CheckOfferMacaroons verifies that the specified macaroons allow access to the offer.
 func (a *authenticator) CheckOfferMacaroons(ctx context.Context, sourceModelUUID, offerUUID string, mac macaroon.Slice, version bakery.Version) (map[string]string, error) {
