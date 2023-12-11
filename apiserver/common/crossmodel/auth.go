@@ -377,68 +377,68 @@ func (a *AuthContext) CreateMacaroonForJaaS(ctx context.Context, sourceModelUUID
 	return macaroon, err
 }
 
-func (a *AuthContext) CreateDischargeMacaroonForJaaS(ctx context.Context, sourceModelUUID, offerUUID string, username string, relID string, version bakery.Version) (*bakery.Macaroon, error) {
-	logger.Criticalf("CreateDischargeMacaroonForJaaS sourceModelUUID %q, offerUUID %q, username %q, relID %q, version %d", sourceModelUUID, offerUUID, username, relID, version)
-	// idURL := `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`
-	idURL := a.offerAccessEndpoint
+// func (a *AuthContext) CreateDischargeMacaroonForJaaS(ctx context.Context, sourceModelUUID, offerUUID string, username string, relID string, version bakery.Version) (*bakery.Macaroon, error) {
+// 	logger.Criticalf("CreateDischargeMacaroonForJaaS sourceModelUUID %q, offerUUID %q, username %q, relID %q, version %d", sourceModelUUID, offerUUID, username, relID, version)
+// 	// idURL := `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`
+// 	idURL := a.offerAccessEndpoint
 
-	// transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
-	// thirdPartyInfo, err := httpbakery.ThirdPartyInfoForLocation(context.TODO(), &http.Client{Transport: transport}, idURL)
-	// logger.Criticalf("CreateMacaroonForJaaS thirdPartyInfo.Version %q, thirdPartyInfo.PublicKey.Key.String() %q", thirdPartyInfo.Version, thirdPartyInfo.PublicKey.Key.String())
-	// if err != nil {
-	// 	return nil, errors.Trace(err)
-	// }
+// 	// transport := &http.Transport{TLSClientConfig: &tls.Config{InsecureSkipVerify: true}}
+// 	// thirdPartyInfo, err := httpbakery.ThirdPartyInfoForLocation(context.TODO(), &http.Client{Transport: transport}, idURL)
+// 	// logger.Criticalf("CreateMacaroonForJaaS thirdPartyInfo.Version %q, thirdPartyInfo.PublicKey.Key.String() %q", thirdPartyInfo.Version, thirdPartyInfo.PublicKey.Key.String())
+// 	// if err != nil {
+// 	// 	return nil, errors.Trace(err)
+// 	// }
 
-	// pkCache := bakery.NewThirdPartyStore()
-	// pkLocator := httpbakery.NewThirdPartyLocator(nil, pkCache)
-	// pkCache.AddInfo(idURL, thirdPartyInfo)
-	// bakery := identchecker.NewBakery(identchecker.BakeryParams{
-	// 	Checker: httpbakery.NewChecker(),
-	// 	Locator: pkLocator,
-	// 	Key:     &bakery.KeyPair{Public: thirdPartyInfo.PublicKey},
-	// 	// IdentityClient: identClient,
-	// 	// RootKeyStore: store,
-	// 	// Authorizer: identchecker.ACLAuthorizer{
-	// 	// 	GetACL: func(ctx context.Context, op bakery.Op) ([]string, bool, error) {
-	// 	// 		return []string{identchecker.Everyone}, false, nil
-	// 	// 	},
-	// 	// },
-	// 	Location: idURL,
-	// })
+// 	// pkCache := bakery.NewThirdPartyStore()
+// 	// pkLocator := httpbakery.NewThirdPartyLocator(nil, pkCache)
+// 	// pkCache.AddInfo(idURL, thirdPartyInfo)
+// 	// bakery := identchecker.NewBakery(identchecker.BakeryParams{
+// 	// 	Checker: httpbakery.NewChecker(),
+// 	// 	Locator: pkLocator,
+// 	// 	Key:     &bakery.KeyPair{Public: thirdPartyInfo.PublicKey},
+// 	// 	// IdentityClient: identClient,
+// 	// 	// RootKeyStore: store,
+// 	// 	// Authorizer: identchecker.ACLAuthorizer{
+// 	// 	// 	GetACL: func(ctx context.Context, op bakery.Op) ([]string, bool, error) {
+// 	// 	// 		return []string{identchecker.Everyone}, false, nil
+// 	// 	// 	},
+// 	// 	// },
+// 	// 	Location: idURL,
+// 	// })
 
-	// bakery, err := a.getTestBakery(idURL)
-	// if err != nil {
-	// 	return nil, errors.Trace(err)
-	// }
-	bakery, err := a.offerBakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	conditionParts := []string{
-		"is-consumer",
-		// "user-ales@external",
-		username,
-		// "applicationoffer-{uuid}",
-		names.NewApplicationOfferTag(offerUUID).String(),
-	}
+// 	// bakery, err := a.getTestBakery(idURL)
+// 	// if err != nil {
+// 	// 	return nil, errors.Trace(err)
+// 	// }
+// 	bakery, err := a.offerBakery.ExpireStorageAfter(localOfferPermissionExpiryTime)
+// 	if err != nil {
+// 		return nil, errors.Trace(err)
+// 	}
+// 	conditionParts := []string{
+// 		"is-consumer",
+// 		// "user-ales@external",
+// 		username,
+// 		// "applicationoffer-{uuid}",
+// 		names.NewApplicationOfferTag(offerUUID).String(),
+// 	}
 
-	caveat := checkers.Caveat{
-		Location:  idURL,
-		Condition: strings.Join(conditionParts, " "),
-	}
-	logger.Criticalf("CreateMacaroonForJaaS caveat %#v", caveat)
-	// macaroon, err := bakery.Oven.NewMacaroon(
-	macaroon, err := bakery.NewMacaroon(
-		ctx,
-		version,
-		[]checkers.Caveat{
-			caveat,
-			checkers.TimeBeforeCaveat(a.clock.Now().Add(expiryIn)),
-		},
-		crossModelConsumeOp(offerUUID),
-	)
-	return macaroon, err
-}
+// 	caveat := checkers.Caveat{
+// 		Location:  idURL,
+// 		Condition: strings.Join(conditionParts, " "),
+// 	}
+// 	logger.Criticalf("CreateMacaroonForJaaS caveat %#v", caveat)
+// 	// macaroon, err := bakery.Oven.NewMacaroon(
+// 	macaroon, err := bakery.NewMacaroon(
+// 		ctx,
+// 		version,
+// 		[]checkers.Caveat{
+// 			caveat,
+// 			checkers.TimeBeforeCaveat(a.clock.Now().Add(expiryIn)),
+// 		},
+// 		crossModelConsumeOp(offerUUID),
+// 	)
+// 	return macaroon, err
+// }
 
 type offerPermissionCheck struct {
 	SourceModelUUID string `yaml:"source-model-uuid"`
