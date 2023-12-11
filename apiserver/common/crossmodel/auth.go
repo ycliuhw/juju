@@ -264,6 +264,10 @@ func (a *AuthContext) createConsumeOfferMacaroon(ctx context.Context, offerUUID,
 	}
 	if offerUUID != "" {
 		caveats = append(caveats[:1], checkers.DeclaredCaveat(offeruuidKey, offerUUID), caveats[2])
+		logger.Criticalf("CreateConsumeOfferMacaroon checkers.DeclaredCaveat(offeruuidKey, offer.OfferUUID) %#v", checkers.DeclaredCaveat(offeruuidKey, offerUUID))
+		for j, cav := range caveats {
+			logger.Criticalf("createConsumeOfferMacaroon caveat[%d] %s", j, pretty.Sprint(cav))
+		}
 	}
 	return bakery.NewMacaroon(
 		ctx,
@@ -308,7 +312,7 @@ func (a *AuthContext) CreateRemoteRelationMacaroon(ctx context.Context, sourceMo
 
 var expiryIn = 15 * time.Minute
 
-func (a *AuthContext) CreateMacaroonForJaaS(ctx context.Context, sourceModelUUID, offerUUID string, username string, relID string, version bakery.Version) (*bakery.Macaroon, error) {
+func (a *AuthContext) CreateMacaroonForJaaS(ctx context.Context, sourceModelUUID, offerUUID string, username string, relID string, version bakery.Version, declaredCaveats ...checkers.Caveat) (*bakery.Macaroon, error) {
 	logger.Criticalf("CreateMacaroonForJaaS sourceModelUUID %q, offerUUID %q, username %q, relID %q, version %d", sourceModelUUID, offerUUID, username, relID, version)
 	idURL := `https://jimm.comsys-internal.v2.staging.canonical.com/macaroons`
 	// idURL := a.offerAccessEndpoint
@@ -353,19 +357,21 @@ func (a *AuthContext) CreateMacaroonForJaaS(ctx context.Context, sourceModelUUID
 		names.NewApplicationOfferTag(offerUUID).String(), // change to use offerUUID rather than tag because we always use UUID instead of offer name!!!
 	}
 
-	caveat := checkers.Caveat{
+	conditionCaveat := checkers.Caveat{
 		Location:  idURL,
 		Condition: strings.Join(conditionParts, " "),
 	}
-	logger.Criticalf("CreateMacaroonForJaaS caveat %#v", caveat)
-	// macaroon, err := bakery.Oven.NewMacaroon(
+	logger.Criticalf("CreateMacaroonForJaaS conditionCaveat %#v", conditionCaveat)
 	macaroon, err := bakery.NewMacaroon(
 		ctx,
 		version,
-		[]checkers.Caveat{
-			caveat,
-			checkers.TimeBeforeCaveat(a.clock.Now().Add(expiryIn)),
-		},
+		append(
+			[]checkers.Caveat{
+				conditionCaveat,
+				checkers.TimeBeforeCaveat(a.clock.Now().Add(expiryIn)),
+			},
+			declaredCaveats...,
+		),
 		crossModelConsumeOp(offerUUID),
 	)
 	return macaroon, err
@@ -558,11 +564,22 @@ func (a *authenticator) checkMacaroons(
 		// offerTag, err := names.ParseApplicationOfferTag(consumedOfferTagStr) // ????!!!
 		offerUUID := strings.TrimPrefix(consumedOfferTagStr, names.ApplicationOfferTagKind+"-")
 		authlogger.Criticalf("check macaroons consumedOfferTagStr %q, offerUUID: %#v", consumedOfferTagStr, offerUUID)
-		declared[usernameKey] = "kelvin.liu@external"
-		declared[sourcemodelKey] = "8f3bff91-2a60-48a6-8d91-47f433f3fdb6"
+		// declared[usernameKey] = "kelvin.liu@external"
+		// declared[sourcemodelKey] = "8f3bff91-2a60-48a6-8d91-47f433f3fdb6"
 		declared[offeruuidKey] = offerUUID
+		if relation, ok := requiredValues[relationKey]; ok {
+			// The user can consume the offer, so we should add the required relation as declared.
+			declared[relationKey] = relation
+		}
 
-		declared[relationKey] = "dummy-source:sink remote-fb19b1d3fc0748968dc434aa45720050:source"
+		// declared[relationKey] = "dummy-source:sink remote-fb19b1d3fc0748968dc434aa45720050:source"
+
+		// // All good, offer verified by JaaS.
+		// firstPartyCaveats, err := a.ctxt.CheckLocalAccessRequest(details)
+		// if err != nil {
+		// 	return nil, errors.Trace(err)
+		// }
+		// return firstPartyCaveats, nil
 	}
 	authlogger.Criticalf("check macaroons with declared 2: %s", pretty.Sprint(declared))
 	username, ok := declared[usernameKey]
@@ -638,8 +655,14 @@ func (a *authenticator) checkMacaroons(
 	// 	return nil, err
 	// }
 
+	var existingDeclaredCaveats []checkers.Caveat
+	for k, v := range declared {
+		logger.Criticalf("Regenerate existing declared caveat => [%q] %q", k, v)
+		existingDeclaredCaveats = append(existingDeclaredCaveats, checkers.DeclaredCaveat(k, v))
+	}
 	m, err := a.ctxt.CreateMacaroonForJaaS(
 		ctx, requiredSourceModelUUID, requiredOffer, username, "", version,
+		existingDeclaredCaveats...,
 	)
 	if err != nil {
 		return nil, errors.Trace(err)
