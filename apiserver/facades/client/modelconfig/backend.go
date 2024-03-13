@@ -4,6 +4,8 @@
 package modelconfig
 
 import (
+	"context"
+
 	"github.com/juju/names/v5"
 
 	"github.com/juju/juju/apiserver/common"
@@ -25,7 +27,12 @@ type Backend interface {
 	SpaceByName(string) error
 	SetModelConstraints(value constraints.Value) error
 	ModelConstraints() (constraints.Value, error)
-	GetSecretBackend(string) (*coresecrets.SecretBackend, error)
+}
+
+// SecretBackendService is an interface for interacting with secret backend service.
+type SecretBackendService interface {
+	GetSecretBackendByName(context.Context, string) (*coresecrets.SecretBackend, error)
+	CheckSecretBackend(ctx context.Context, backendID string) error
 }
 
 type stateShim struct {
@@ -54,11 +61,6 @@ func (st stateShim) ModelTag() names.ModelTag {
 func (st stateShim) SpaceByName(name string) error {
 	_, err := st.State.SpaceByName(name)
 	return err
-}
-
-func (st stateShim) GetSecretBackend(name string) (*coresecrets.SecretBackend, error) {
-	backends := state.NewSecretBackends(st.State)
-	return backends.GetSecretBackend(name)
 }
 
 // NewStateBackend creates a backend for the facade to use.

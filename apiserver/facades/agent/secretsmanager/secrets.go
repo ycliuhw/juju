@@ -22,6 +22,7 @@ import (
 	coresecrets "github.com/juju/juju/core/secrets"
 	corewatcher "github.com/juju/juju/core/watcher"
 	"github.com/juju/juju/internal/secrets"
+	"github.com/juju/juju/internal/secrets/provider"
 	secretsprovider "github.com/juju/juju/internal/secrets/provider"
 	"github.com/juju/juju/rpc/params"
 	"github.com/juju/juju/state"
@@ -48,11 +49,12 @@ type SecretsManagerAPI struct {
 	modelUUID         string
 
 	backendConfigGetter commonsecrets.BackendConfigGetter
-	adminConfigGetter   commonsecrets.BackendAdminConfigGetter
+	adminConfigGetter   func(stdCtx context.Context) (*provider.ModelBackendConfigInfo, error)
 	drainConfigGetter   commonsecrets.BackendDrainConfigGetter
 	remoteClientGetter  func(ctx context.Context, uri *coresecrets.URI) (CrossModelSecretsClient, error)
 
 	crossModelState CrossModelState
+	modelService    ModelService
 
 	logger loggo.Logger
 }
@@ -84,7 +86,13 @@ func (s *SecretsManagerAPIV1) GetSecretStoreConfig(ctx context.Context) (params.
 // GetSecretBackendConfig gets the config needed to create a client to secret backends.
 // TODO - drop when we no longer support juju 3.1.x
 func (s *SecretsManagerAPIV1) GetSecretBackendConfig(ctx context.Context) (params.SecretBackendConfigResultsV1, error) {
-	cfgInfo, err := s.backendConfigGetter(ctx, nil, true)
+	adminConfig, err := s.adminConfigGetter(ctx)
+	if err != nil {
+		return params.SecretBackendConfigResultsV1{}, errors.Trace(err)
+	}
+	cfgInfo, err := s.backendConfigGetter(ctx, *adminConfig, nil, true)
+	// cfgInfo, err := s.backendService.GetSecretBackendConfig(ctx, nil, true)
+	// cfgInfo, err := s.backendService.GetSecretBackendConfigLegacy(ctx)
 	if err != nil {
 		return params.SecretBackendConfigResultsV1{}, errors.Trace(err)
 	}
@@ -109,11 +117,11 @@ func (*SecretsManagerAPIV1) GetSecretBackendConfigs(ctx context.Context, _ struc
 
 // GetSecretBackendConfigs gets the config needed to create a client to secret backends.
 func (s *SecretsManagerAPI) GetSecretBackendConfigs(ctx context.Context, arg params.SecretBackendArgs) (params.SecretBackendConfigResults, error) {
-	if arg.ForDrain {
-		return s.getBackendConfigForDrain(ctx, arg)
-	}
 	results := params.SecretBackendConfigResults{
 		Results: make(map[string]params.SecretBackendConfigResult, len(arg.BackendIDs)),
+	}
+	if arg.ForDrain {
+		return s.getBackendConfigForDrain(ctx, arg)
 	}
 	result, activeID, err := s.getSecretBackendConfig(ctx, arg.BackendIDs)
 	if err != nil {
@@ -136,7 +144,11 @@ func (s *SecretsManagerAPI) getBackendConfigForDrain(ctx context.Context, arg pa
 	results := params.SecretBackendConfigResults{
 		Results: make(map[string]params.SecretBackendConfigResult, 1),
 	}
-	cfgInfo, err := s.drainConfigGetter(ctx, backendID)
+	adminConfig, err := s.adminConfigGetter(ctx)
+	if err != nil {
+		return results, errors.Trace(err)
+	}
+	cfgInfo, err := s.drainConfigGetter(ctx, *adminConfig, backendID)
 	if err != nil {
 		return results, errors.Trace(err)
 	}
@@ -161,7 +173,12 @@ func (s *SecretsManagerAPI) getBackendConfigForDrain(ctx context.Context, arg pa
 
 // GetSecretBackendConfig gets the config needed to create a client to secret backends.
 func (s *SecretsManagerAPI) getSecretBackendConfig(ctx context.Context, backendIDs []string) (map[string]params.SecretBackendConfigResult, string, error) {
-	cfgInfo, err := s.backendConfigGetter(ctx, backendIDs, false)
+	adminConfig, err := s.adminConfigGetter(ctx)
+	if err != nil {
+		return nil, "", errors.Trace(err)
+	}
+	cfgInfo, err := s.backendConfigGetter(ctx, *adminConfig, backendIDs, false)
+	// cfgInfo, err := s.backendService.GetSecretBackendConfig(ctx, backendIDs)
 	if err != nil {
 		return nil, "", errors.Trace(err)
 	}
@@ -190,7 +207,12 @@ func (s *SecretsManagerAPI) getSecretBackendConfig(ctx context.Context, backendI
 }
 
 func (s *SecretsManagerAPI) getBackend(ctx context.Context, backendID string) (*secretsprovider.ModelBackendConfig, bool, error) {
-	cfgInfo, err := s.backendConfigGetter(ctx, []string{backendID}, false)
+	adminConfig, err := s.adminConfigGetter(ctx)
+	if err != nil {
+		return nil, false, errors.Trace(err)
+	}
+	cfgInfo, err := s.backendConfigGetter(ctx, *adminConfig, []string{backendID}, false)
+	// cfgInfo, err := s.backendService.GetSecretBackendConfig(ctx, backendID)
 	if err != nil {
 		return nil, false, errors.Trace(err)
 	}
@@ -353,9 +375,15 @@ func (s *SecretsManagerAPI) updateSecret(arg params.UpdateSecretArg) error {
 
 // RemoveSecrets removes the specified secrets.
 func (s *SecretsManagerAPI) RemoveSecrets(ctx context.Context, args params.DeleteSecretArgs) (params.ErrorResults, error) {
+	adminConfig, err := s.adminConfigGetter(ctx)
+	if err != nil {
+		return params.ErrorResults{}, errors.Trace(err)
+	}
 	return commonsecrets.RemoveSecretsForAgent(
 		ctx,
-		s.secretsState, s.adminConfigGetter, args,
+		s.secretsState,
+		*adminConfig,
+		args,
 		s.modelUUID,
 		func(uri *coresecrets.URI) error {
 			_, err := s.canManage(uri)

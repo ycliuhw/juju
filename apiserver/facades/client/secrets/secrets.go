@@ -41,8 +41,10 @@ type SecretsAPI struct {
 	secretsConsumer SecretsConsumer
 
 	adminBackendConfigGetter               func(ctx context.Context) (*provider.ModelBackendConfigInfo, error)
-	backendConfigGetterForUserSecretsWrite func(ctx context.Context, backendID string) (*provider.ModelBackendConfigInfo, error)
-	backendGetter                          func(context.Context, *provider.ModelBackendConfig) (provider.SecretsBackend, error)
+	backendConfigGetterForUserSecretsWrite func(
+		ctx context.Context, adminModelCfg provider.ModelBackendConfigInfo, backendID string,
+	) (*provider.ModelBackendConfigInfo, error)
+	backendGetter func(context.Context, *provider.ModelBackendConfig) (provider.SecretsBackend, error)
 }
 
 // SecretsAPIV1 is the backend for the Secrets facade v1.
@@ -246,7 +248,11 @@ func (s *SecretsAPI) getBackendForUserSecretsWrite(ctx context.Context) (provide
 			return nil, errors.Trace(err)
 		}
 	}
-	cfgInfo, err := s.backendConfigGetterForUserSecretsWrite(ctx, s.activeBackendID)
+	info, err := s.adminBackendConfigGetter(ctx)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	cfgInfo, err := s.backendConfigGetterForUserSecretsWrite(ctx, *info, s.activeBackendID)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
@@ -491,10 +497,14 @@ func (s *SecretsAPIV1) RemoveSecrets(ctx context.Context, _ struct{}) {}
 
 // RemoveSecrets remove user secret.
 func (s *SecretsAPI) RemoveSecrets(ctx context.Context, args params.DeleteSecretArgs) (params.ErrorResults, error) {
+	adminConfig, err := s.adminBackendConfigGetter(ctx)
+	if err != nil {
+		return params.ErrorResults{}, errors.Trace(err)
+	}
 	// TODO(secrets): JUJU-4719.
 	return commonsecrets.RemoveUserSecrets(
 		ctx,
-		s.secretsState, s.adminBackendConfigGetter,
+		s.secretsState, *adminConfig,
 		s.authTag, args, s.modelUUID,
 		func(uri *coresecrets.URI) error {
 			if err := s.checkCanWrite(); err != nil {

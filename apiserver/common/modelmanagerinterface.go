@@ -25,6 +25,7 @@ import (
 	"github.com/juju/juju/environs"
 	environscloudspec "github.com/juju/juju/environs/cloudspec"
 	"github.com/juju/juju/environs/config"
+	"github.com/juju/juju/internal/secrets/provider"
 	"github.com/juju/juju/state"
 )
 
@@ -135,6 +136,13 @@ type CredentialService interface {
 type CloudService interface {
 	Cloud(ctx context.Context, name string) (*cloud.Cloud, error)
 	WatchCloud(ctx context.Context, name string) (watcher.NotifyWatcher, error)
+}
+
+// SecretBackendService provides access to secret backends.
+type SecretBackendService interface {
+	GetSecretBackendConfigForAdmin(
+		ctx context.Context, modelConfig *config.Config, cloud cloud.Cloud, cred cloud.Credential,
+	) (*provider.ModelBackendConfigInfo, error)
 }
 
 var _ ModelManagerBackend = (*modelManagerStateShim)(nil)

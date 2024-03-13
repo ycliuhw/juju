@@ -4,11 +4,16 @@
 package modelmanager
 
 import (
+	"context"
+
 	"github.com/juju/errors"
 	"github.com/juju/names/v5"
 
 	"github.com/juju/juju/apiserver/common"
+	"github.com/juju/juju/cloud"
 	"github.com/juju/juju/core/network"
+	"github.com/juju/juju/domain/model"
+	"github.com/juju/juju/domain/secretbackend"
 	"github.com/juju/juju/environs/space"
 )
 
@@ -77,4 +82,13 @@ func (s credentialStateShim) CloudCredentialTag() (names.CloudCredentialTag, boo
 	}
 	credTag, exists := m.CloudCredentialTag()
 	return credTag, exists, nil
+}
+
+// SecretBackendService is an interface for interacting with secret backend service.
+type SecretBackendService interface {
+	BackendSummaryInfo(
+		ctx context.Context,
+		_ model.UUID, _ secretbackend.ModelGetter, _ cloud.Cloud, _ cloud.Credential,
+		reveal bool, _ secretbackend.SecretBackendFilter,
+	) ([]secretbackend.SecretBackendInfo, error)
 }

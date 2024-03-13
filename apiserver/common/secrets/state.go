@@ -35,9 +35,9 @@ type StatePool interface {
 	GetModel(modelUUID string) (common.Model, func() bool, error)
 }
 
-type SecretsBackendState interface {
-	GetSecretBackendByID(ID string) (*secrets.SecretBackend, error)
-	ListSecretBackends() ([]*secrets.SecretBackend, error)
+type SecretsBackendService interface {
+	GetSecretBackend(context.Context, string) (*secrets.SecretBackend, error)
+	ListSecretBackends() ([]secrets.SecretBackend, error)
 }
 
 // SecretsConsumer instances provide secret consumer apis.

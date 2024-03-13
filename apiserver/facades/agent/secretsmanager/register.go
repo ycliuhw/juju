@@ -18,7 +18,9 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
 	corelogger "github.com/juju/juju/core/logger"
+	coremodel "github.com/juju/juju/core/model"
 	coresecrets "github.com/juju/juju/core/secrets"
+	"github.com/juju/juju/domain/credential"
 	"github.com/juju/juju/internal/secrets/provider"
 	"github.com/juju/juju/internal/worker/apicaller"
 	"github.com/juju/juju/rpc/params"
@@ -55,21 +57,39 @@ func NewSecretManagerAPI(stdCtx context.Context, ctx facade.ModelContext) (*Secr
 		return nil, errors.Trace(err)
 	}
 	serviceFactory := ctx.ServiceFactory()
+	modelService := serviceFactory.Model()
 
 	leadershipChecker, err := ctx.LeadershipChecker()
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	cloudService := serviceFactory.Cloud()
-	credentialSerivce := serviceFactory.Credential()
-	secretBackendConfigGetter := func(stdCtx context.Context, backendIDs []string, wantAll bool) (*provider.ModelBackendConfigInfo, error) {
-		return secrets.BackendConfigInfo(stdCtx, secrets.SecretsModel(model), true, cloudService, credentialSerivce, backendIDs, wantAll, ctx.Auth().GetAuthTag(), leadershipChecker)
+
+	secretBackendConfigGetter := func(stdCtx context.Context, adminModelCfg provider.ModelBackendConfigInfo, backendIDs []string, wantAll bool) (*provider.ModelBackendConfigInfo, error) {
+		return secrets.BackendConfigInfo(stdCtx, secrets.SecretsModel(model), true, adminModelCfg, backendIDs, wantAll, ctx.Auth().GetAuthTag(), leadershipChecker)
 	}
 	secretBackendAdminConfigGetter := func(stdCtx context.Context) (*provider.ModelBackendConfigInfo, error) {
-		return secrets.AdminBackendConfigInfo(stdCtx, secrets.SecretsModel(model), cloudService, credentialSerivce)
+		cloudService := serviceFactory.Cloud()
+		credentialService := serviceFactory.Credential()
+		backendService := serviceFactory.SecretBackend(
+			clock.WallClock, model.ControllerUUID(), provider.Provider,
+		)
+		cld, err := cloudService.Cloud(stdCtx, model.CloudName())
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		tag, ok := model.CloudCredentialTag()
+		if !ok {
+			return nil, errors.NotValidf("cloud credential for %s is empty", model.UUID())
+		}
+		cred, err := credentialService.CloudCredential(stdCtx, credential.IdFromTag(tag))
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		return backendService.GetSecretBackendConfigForAdmin(stdCtx, coremodel.UUID(model.UUID()), modelService, *cld, cred)
+		// return secrets.AdminBackendConfigInfo(stdCtx, secrets.SecretsModel(model), cloudService, credentialService)
 	}
-	secretBackendDrainConfigGetter := func(stdCtx context.Context, backendID string) (*provider.ModelBackendConfigInfo, error) {
-		return secrets.DrainBackendConfigInfo(stdCtx, backendID, secrets.SecretsModel(model), cloudService, credentialSerivce, ctx.Auth().GetAuthTag(), leadershipChecker)
+	secretBackendDrainConfigGetter := func(stdCtx context.Context, adminModelCfg provider.ModelBackendConfigInfo, backendID string) (*provider.ModelBackendConfigInfo, error) {
+		return secrets.DrainBackendConfigInfo(stdCtx, backendID, secrets.SecretsModel(model), adminModelCfg, ctx.Auth().GetAuthTag(), leadershipChecker)
 	}
 	controllerAPI := common.NewControllerConfigAPI(
 		ctx.State(),
@@ -116,8 +136,10 @@ func NewSecretManagerAPI(stdCtx context.Context, ctx facade.ModelContext) (*Secr
 		backendConfigGetter: secretBackendConfigGetter,
 		adminConfigGetter:   secretBackendAdminConfigGetter,
 		drainConfigGetter:   secretBackendDrainConfigGetter,
-		remoteClientGetter:  remoteClientGetter,
-		crossModelState:     ctx.State().RemoteEntities(),
-		logger:              ctx.Logger().ChildWithTags("secretsmanager", corelogger.SECRETS),
+		// backendService:      backendService,
+		remoteClientGetter: remoteClientGetter,
+		crossModelState:    ctx.State().RemoteEntities(),
+		modelService:       modelService,
+		logger:             ctx.Logger().ChildWithTags("secretsmanager", corelogger.SECRETS),
 	}, nil
 }

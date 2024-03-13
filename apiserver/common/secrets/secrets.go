@@ -45,99 +45,95 @@ func getSecretBackendsState(m Model) state.SecretBackendsStorage {
 }
 
 // BackendConfigGetter is a func used to get secret backend config.
-type BackendConfigGetter func(ctx context.Context, backendIDs []string, wantAll bool) (*provider.ModelBackendConfigInfo, error)
+type BackendConfigGetter func(ctx context.Context, adminModelCfg provider.ModelBackendConfigInfo, backendIDs []string, wantAll bool) (*provider.ModelBackendConfigInfo, error)
 
-// BackendAdminConfigGetter is a func used to get admin level secret backend config.
-type BackendAdminConfigGetter func(context.Context) (*provider.ModelBackendConfigInfo, error)
+// // BackendAdminConfigGetter is a func used to get admin level secret backend config.
+// type BackendAdminConfigGetter func(context.Context, provider.ModelBackendConfigInfo) (*provider.ModelBackendConfigInfo, error)
 
 // BackendDrainConfigGetter is a func used to get secret backend config for draining.
-type BackendDrainConfigGetter func(context.Context, string) (*provider.ModelBackendConfigInfo, error)
+type BackendDrainConfigGetter func(context.Context, provider.ModelBackendConfigInfo, string) (*provider.ModelBackendConfigInfo, error)
 
-// AdminBackendConfigInfo returns the admin config for the secret backends is use by
-// the specified model.
-// If external backend is configured, it returns the external backend together with the "internal" backend and
-// the k8s backend for k8s models.
-func AdminBackendConfigInfo(
-	ctx context.Context, model Model, cloudService common.CloudService, credentialService common.CredentialService,
-) (*provider.ModelBackendConfigInfo, error) {
-	cfg, err := model.Config()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	backendName := cfg.SecretBackend()
+// // AdminBackendConfigInfo returns the admin config for the secret backends is use by
+// // the specified model.
+// // If external backend is configured, it returns the external backend together with the "internal" backend and
+// // the k8s backend for k8s models.
+// func AdminBackendConfigInfo(
+// 	ctx context.Context, model Model, cloudService common.CloudService, credentialService common.CredentialService,
+// ) (*provider.ModelBackendConfigInfo, error) {
+// 	cfg, err := model.Config()
+// 	if err != nil {
+// 		return nil, errors.Trace(err)
+// 	}
+// 	backendName := cfg.SecretBackend()
 
-	var info provider.ModelBackendConfigInfo
-	info.Configs = make(map[string]provider.ModelBackendConfig)
+// 	var info provider.ModelBackendConfigInfo
+// 	info.Configs = make(map[string]provider.ModelBackendConfig)
 
-	// We need to include builtin backends for secret draining and accessing those secrets while drain is in progress.
-	// TODO(secrets) - only use those in use by model
-	// For now, we'll return all backends on the controller.
-	jujuBackendID := model.ControllerUUID()
-	info.Configs[jujuBackendID] = provider.ModelBackendConfig{
-		ControllerUUID: model.ControllerUUID(),
-		ModelUUID:      model.UUID(),
-		ModelName:      model.Name(),
-		BackendConfig:  juju.BuiltInConfig(),
-	}
-	if backendName == provider.Auto || backendName == provider.Internal {
-		info.ActiveID = jujuBackendID
-	}
+// 	// We need to include builtin backends for secret draining and accessing those secrets while drain is in progress.
+// 	// TODO(secrets) - only use those in use by model
+// 	// For now, we'll return all backends on the controller.
+// 	jujuBackendID := model.ControllerUUID()
+// 	info.Configs[jujuBackendID] = provider.ModelBackendConfig{
+// 		ControllerUUID: model.ControllerUUID(),
+// 		ModelUUID:      model.UUID(),
+// 		ModelName:      model.Name(),
+// 		BackendConfig:  juju.BuiltInConfig(),
+// 	}
+// 	if backendName == provider.Auto || backendName == provider.Internal {
+// 		info.ActiveID = jujuBackendID
+// 	}
 
-	if model.Type() == state.ModelTypeCAAS {
-		spec, err := cloudSpecForModel(ctx, model, cloudService, credentialService)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		k8sConfig, err := kubernetes.BuiltInConfig(spec)
-		if err != nil {
-			return nil, errors.Trace(err)
-		}
-		k8sBackendID := model.UUID()
-		info.Configs[k8sBackendID] = provider.ModelBackendConfig{
-			ControllerUUID: model.ControllerUUID(),
-			ModelUUID:      model.UUID(),
-			ModelName:      model.Name(),
-			BackendConfig:  *k8sConfig,
-		}
-		if backendName == provider.Auto {
-			info.ActiveID = k8sBackendID
-		}
-	}
+// 	if model.Type() == state.ModelTypeCAAS {
+// 		spec, err := cloudSpecForModel(ctx, model, cloudService, credentialService)
+// 		if err != nil {
+// 			return nil, errors.Trace(err)
+// 		}
+// 		k8sConfig, err := kubernetes.BuiltInConfig(spec)
+// 		if err != nil {
+// 			return nil, errors.Trace(err)
+// 		}
+// 		k8sBackendID := model.UUID()
+// 		info.Configs[k8sBackendID] = provider.ModelBackendConfig{
+// 			ControllerUUID: model.ControllerUUID(),
+// 			ModelUUID:      model.UUID(),
+// 			ModelName:      model.Name(),
+// 			BackendConfig:  *k8sConfig,
+// 		}
+// 		if backendName == provider.Auto {
+// 			info.ActiveID = k8sBackendID
+// 		}
+// 	}
 
-	backendState := GetSecretBackendsState(model)
-	backends, err := backendState.ListSecretBackends()
-	if err != nil {
-		return nil, errors.Trace(err)
-	}
-	for _, b := range backends {
-		if b.Name == backendName {
-			info.ActiveID = b.ID
-		}
-		info.Configs[b.ID] = provider.ModelBackendConfig{
-			ControllerUUID: model.ControllerUUID(),
-			ModelUUID:      model.UUID(),
-			ModelName:      model.Name(),
-			BackendConfig: provider.BackendConfig{
-				BackendType: b.BackendType,
-				Config:      b.Config,
-			},
-		}
-	}
-	if info.ActiveID == "" {
-		return nil, errors.NotFoundf("secret backend %q", backendName)
-	}
-	return &info, nil
-}
+// 	backendState := GetSecretBackendsState(model)
+// 	backends, err := backendState.ListSecretBackends()
+// 	if err != nil {
+// 		return nil, errors.Trace(err)
+// 	}
+// 	for _, b := range backends {
+// 		if b.Name == backendName {
+// 			info.ActiveID = b.ID
+// 		}
+// 		info.Configs[b.ID] = provider.ModelBackendConfig{
+// 			ControllerUUID: model.ControllerUUID(),
+// 			ModelUUID:      model.UUID(),
+// 			ModelName:      model.Name(),
+// 			BackendConfig: provider.BackendConfig{
+// 				BackendType: b.BackendType,
+// 				Config:      b.Config,
+// 			},
+// 		}
+// 	}
+// 	if info.ActiveID == "" {
+// 		return nil, errors.NotFoundf("secret backend %q", backendName)
+// 	}
+// 	return &info, nil
+// }
 
 // DrainBackendConfigInfo returns the secret backend config for the drain worker to use.
 func DrainBackendConfigInfo(
-	ctx context.Context, backendID string, model Model, cloudService common.CloudService, credentialService common.CredentialService,
+	ctx context.Context, backendID string, model Model, adminModelCfg provider.ModelBackendConfigInfo,
 	authTag names.Tag, leadershipChecker leadership.Checker,
 ) (*provider.ModelBackendConfigInfo, error) {
-	adminModelCfg, err := AdminBackendConfigInfo(ctx, model, cloudService, credentialService)
-	if err != nil {
-		return nil, errors.Annotate(err, "getting configured secrets providers")
-	}
 	result := provider.ModelBackendConfigInfo{
 		ActiveID: adminModelCfg.ActiveID,
 		Configs:  make(map[string]provider.ModelBackendConfig),
@@ -168,14 +164,10 @@ func DrainBackendConfigInfo(
 // of the current active backend.
 func BackendConfigInfo(
 	ctx context.Context, model Model, sameController bool,
-	cloudService common.CloudService, credentialService common.CredentialService,
+	adminModelCfg provider.ModelBackendConfigInfo,
 	backendIDs []string, wantAll bool,
 	authTag names.Tag, leadershipChecker leadership.Checker,
 ) (*provider.ModelBackendConfigInfo, error) {
-	adminModelCfg, err := AdminBackendConfigInfo(ctx, model, cloudService, credentialService)
-	if err != nil {
-		return nil, errors.Annotate(err, "getting configured secrets providers")
-	}
 	result := provider.ModelBackendConfigInfo{
 		ActiveID: adminModelCfg.ActiveID,
 		Configs:  make(map[string]provider.ModelBackendConfig),
@@ -338,8 +330,9 @@ type BackendFilter struct {
 // BackendSummaryInfo returns a summary of the status of the secret backends relevant to the specified models.
 // This method is used by the secretsbackend and modelmanager client facades; it is tested on the secretsbackend facade package.
 func BackendSummaryInfo(
-	statePool StatePool, backendState SecretsBackendState, secretState SecretsState, controllerUUID string, reveal bool, filter BackendFilter,
+	statePool StatePool, backendService SecretsBackendService, secretState SecretsState, controllerUUID string, reveal bool, filter BackendFilter,
 ) ([]params.SecretBackendResult, error) {
+	// TODO
 	backendIDSecrets, err := secretState.ListModelSecrets(filter.All)
 	if err != nil {
 		return nil, errors.Trace(err)
@@ -350,7 +343,7 @@ func BackendSummaryInfo(
 		if _, ok := backendIDSecrets[controllerUUID]; !ok {
 			backendIDSecrets[controllerUUID] = set.NewStrings()
 		}
-		allBackends, err := backendState.ListSecretBackends()
+		allBackends, err := backendService.ListSecretBackends()
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -372,7 +365,7 @@ func BackendSummaryInfo(
 	var results []params.SecretBackendResult
 	wanted := set.NewStrings(filter.Names...)
 	for _, id := range backendIDs {
-		backendResult, err := getSecretBackendInfo(statePool, backendState, controllerUUID, id, wanted, reveal)
+		backendResult, err := getSecretBackendInfo(statePool, backendService, controllerUUID, id, wanted, reveal)
 		if err != nil {
 			// When we get not found, the backend has been deleted,even though it contained secrets.
 			// We skip over such cases.
@@ -395,13 +388,13 @@ func BackendSummaryInfo(
 	return results, nil
 }
 
-func getSecretBackendInfo(statePool StatePool, backendState SecretsBackendState, controllerUUID string, id string, wanted set.Strings, reveal bool) (*params.SecretBackendResult, error) {
+func getSecretBackendInfo(statePool StatePool, backendService SecretsBackendService, controllerUUID string, id string, wanted set.Strings, reveal bool) (*params.SecretBackendResult, error) {
 	var (
 		b   *coresecrets.SecretBackend
 		err error
 	)
 	if !coresecrets.IsInternalSecretBackendID(id) {
-		b, err = backendState.GetSecretBackendByID(id)
+		b, err = backendService.GetSecretBackend(context.TODO(), id)
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -567,14 +560,14 @@ func GetSecretMetadata(
 // the caller must have permission to manage the secret(secret owners remove secrets from the backend on uniter side).
 func RemoveSecretsForAgent(
 	ctx context.Context,
-	removeState SecretsRemoveState, adminConfigGetter BackendAdminConfigGetter,
+	removeState SecretsRemoveState, adminCfgInfo provider.ModelBackendConfigInfo,
 	args params.DeleteSecretArgs,
 	modelUUID string,
 	canDelete func(*coresecrets.URI) error,
 ) (params.ErrorResults, error) {
 	return removeSecrets(
 		ctx,
-		removeState, adminConfigGetter, args,
+		removeState, adminCfgInfo, args,
 		modelUUID,
 		canDelete,
 		func(context.Context, provider.SecretBackendProvider, provider.ModelBackendConfig, provider.SecretRevisions) error {
@@ -587,14 +580,14 @@ func RemoveSecretsForAgent(
 // The secrets are removed from the state and backend, and the caller must have model admin access.
 func RemoveUserSecrets(
 	ctx context.Context,
-	removeState SecretsRemoveState, adminConfigGetter BackendAdminConfigGetter,
+	removeState SecretsRemoveState, adminCfgInfo provider.ModelBackendConfigInfo,
 	authTag names.Tag, args params.DeleteSecretArgs,
 	modelUUID string,
 	canDelete func(*coresecrets.URI) error,
 ) (params.ErrorResults, error) {
 	return removeSecrets(
 		ctx,
-		removeState, adminConfigGetter, args, modelUUID, canDelete,
+		removeState, adminCfgInfo, args, modelUUID, canDelete,
 		func(ctx context.Context, p provider.SecretBackendProvider, cfg provider.ModelBackendConfig, revs provider.SecretRevisions) error {
 			backend, err := p.NewBackend(&cfg)
 			if err != nil {
@@ -632,7 +625,7 @@ func getSecretURIForLabel(secretsState ListSecretsState, modelUUID string, label
 
 func removeSecrets(
 	ctx context.Context,
-	removeState SecretsRemoveState, adminConfigGetter BackendAdminConfigGetter,
+	removeState SecretsRemoveState, adminCfgInfo provider.ModelBackendConfigInfo,
 	args params.DeleteSecretArgs,
 	modelUUID string,
 	canDelete func(*coresecrets.URI) error,
@@ -644,10 +637,6 @@ func removeSecrets(
 
 	if len(args.Args) == 0 {
 		return result, nil
-	}
-	cfgInfo, err := adminConfigGetter(ctx)
-	if err != nil {
-		return result, errors.Trace(err)
 	}
 
 	removeFromExternal := func(uri *coresecrets.URI, revisions ...int) error {
@@ -682,7 +671,7 @@ func removeSecrets(
 		}
 
 		for backendID, r := range externalRevs {
-			backendCfg, ok := cfgInfo.Configs[backendID]
+			backendCfg, ok := adminCfgInfo.Configs[backendID]
 			if !ok {
 				return errors.NotFoundf("secret backend %q", backendID)
 			}

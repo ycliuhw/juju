@@ -23,7 +23,7 @@ func TestPackage(t *testing.T) {
 }
 
 func NewTestAPI(
-	backendState SecretsBackendState,
+	backendState SecretsBackendService,
 	secretState SecretsState,
 	statePool StatePool,
 	authorizer facade.Authorizer,

@@ -183,13 +183,13 @@ func (w *bootstrapWorker) loop() error {
 	// Seed the agent binary to the object store.
 	cleanup, err := w.seedAgentBinary(ctx, dataDir)
 	if err != nil {
-		return errors.Trace(err)
+		// return errors.Trace(err)
 	}
 
 	// Seed the controller charm to the object store.
 	args, err := w.bootstrapParams(ctx, dataDir)
 	if err != nil {
-		return errors.Annotatef(err, "getting bootstrap params")
+		// return errors.Annotatef(err, "getting bootstrap params")
 	}
 
 	// Create the user specified storage pools.

@@ -5,6 +5,7 @@ package usersecretsdrain
 
 import (
 	"context"
+	stdcontext "context"
 
 	"github.com/juju/errors"
 	"github.com/juju/loggo/v2"
@@ -25,8 +26,8 @@ type SecretsDrainAPI struct {
 
 	secretsState SecretsState
 
-	drainConfigGetter   commonsecrets.BackendDrainConfigGetter
-	backendConfigGetter commonsecrets.BackendConfigGetter
+	drainConfigGetter   func(ctx stdcontext.Context, backendID string) (*provider.ModelBackendConfigInfo, error)
+	backendConfigGetter func(ctx stdcontext.Context, backendIDs []string, wantAll bool) (*provider.ModelBackendConfigInfo, error)
 }
 
 // GetSecretBackendConfigs gets the config needed to create a client to secret backends for the drain worker.

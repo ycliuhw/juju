@@ -7,11 +7,14 @@ import (
 	stdcontext "context"
 	"reflect"
 
+	"github.com/juju/clock"
 	"github.com/juju/errors"
 
 	"github.com/juju/juju/apiserver/common/secrets"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
+	"github.com/juju/juju/domain/credential"
+	domainmodel "github.com/juju/juju/domain/model"
 	"github.com/juju/juju/internal/secrets/provider"
 	"github.com/juju/juju/state"
 )
@@ -49,18 +52,38 @@ func newSecretsAPI(context facade.ModelContext) (*SecretsAPI, error) {
 	if err != nil {
 		return nil, errors.Trace(err)
 	}
-	adminBackendConfigGetter := func(ctx stdcontext.Context) (*provider.ModelBackendConfigInfo, error) {
-		return secrets.AdminBackendConfigInfo(
-			ctx, secrets.SecretsModel(model),
-			serviceFactory.Cloud(), serviceFactory.Credential(),
+	adminBackendConfigGetter := func(stdCtx stdcontext.Context) (*provider.ModelBackendConfigInfo, error) {
+		cloudService := serviceFactory.Cloud()
+		credentialSerivce := serviceFactory.Credential()
+		modelService := serviceFactory.Model()
+		backendService := serviceFactory.SecretBackend(
+			clock.WallClock, model.ControllerUUID(), provider.Provider,
 		)
+
+		cld, err := cloudService.Get(stdCtx, model.CloudName())
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		tag, ok := model.CloudCredentialTag()
+		if !ok {
+			return nil, errors.NotValidf("cloud credential for %s is empty", model.UUID())
+		}
+		cred, err := credentialSerivce.CloudCredential(stdCtx, credential.IdFromTag(tag))
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		return backendService.GetSecretBackendConfigForAdmin(stdCtx, domainmodel.UUID(model.UUID()), modelService, *cld, cred)
+		// return secrets.AdminBackendConfigInfo(
+		// 	ctx, secrets.SecretsModel(model),
+		// 	serviceFactory.Cloud(), serviceFactory.Credential(),
+		// )
 	}
-	backendConfigGetterForUserSecretsWrite := func(ctx stdcontext.Context, backendID string) (*provider.ModelBackendConfigInfo, error) {
+	backendConfigGetterForUserSecretsWrite := func(ctx stdcontext.Context, adminModelCfg provider.ModelBackendConfigInfo, backendID string) (*provider.ModelBackendConfigInfo, error) {
 		// User secrets are owned by the model.
 		authTag := model.ModelTag()
 		return secrets.BackendConfigInfo(
 			ctx, secrets.SecretsModel(model), true,
-			serviceFactory.Cloud(), serviceFactory.Credential(),
+			adminModelCfg,
 			[]string{backendID}, false, authTag, leadershipChecker,
 		)
 	}

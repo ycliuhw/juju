@@ -19,7 +19,6 @@ import (
 	"github.com/juju/juju/apiserver/authentication"
 	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/apiserver/common/credentialcommon"
-	commonsecrets "github.com/juju/juju/apiserver/common/secrets"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/caas"
@@ -30,7 +29,13 @@ import (
 	"github.com/juju/juju/core/objectstore"
 	"github.com/juju/juju/core/permission"
 	"github.com/juju/juju/domain/credential"
+<<<<<<< Updated upstream
+=======
+	"github.com/juju/juju/domain/model"
+	domainmodel "github.com/juju/juju/domain/model"
+>>>>>>> Stashed changes
 	modelerrors "github.com/juju/juju/domain/model/errors"
+	"github.com/juju/juju/domain/secretbackend"
 	"github.com/juju/juju/environs"
 	environscloudspec "github.com/juju/juju/environs/cloudspec"
 	"github.com/juju/juju/environs/config"
@@ -54,12 +59,23 @@ type newCaasBrokerFunc func(_ context.Context, args environs.OpenParams) (caas.B
 // ModelManagerService defines a interface for interacting with the underlying
 // state.
 type ModelManagerService interface {
+<<<<<<< Updated upstream
 	Create(context.Context, coremodel.UUID) error
+=======
+	Create(context.Context, domainmodel.UUID) error
+>>>>>>> Stashed changes
 }
 
 // ModelService defines a interface for interacting with the underlying state.
 type ModelService interface {
+<<<<<<< Updated upstream
 	DeleteModel(context.Context, coremodel.UUID) error
+=======
+	DeleteModel(context.Context, domainmodel.UUID) error
+
+	GetModel(ctx context.Context, uuid model.UUID) (*coremodel.Model, error)
+	GetSecretBackend(ctx context.Context, modelUUID model.UUID) (model.SecretBackendIdentifier, error)
+>>>>>>> Stashed changes
 }
 
 // ModelExporter defines a interface for exporting models.
@@ -96,6 +112,7 @@ type ModelManagerAPI struct {
 	ctlrState           common.ModelManagerBackend
 	cloudService        CloudService
 	credentialService   CredentialService
+	secretbackend       SecretBackendService
 	store               objectstore.ObjectStore
 	configSchemaSource  config.ConfigSchemaSourceGetter
 	check               common.BlockCheckerInterface
@@ -117,6 +134,7 @@ func NewModelManagerAPI(
 	credentialService CredentialService,
 	modelManagerService ModelManagerService,
 	modelService ModelService,
+	secretbackend SecretBackendService,
 	store objectstore.ObjectStore,
 	configSchemaSource config.ConfigSchemaSourceGetter,
 	toolsFinder common.ToolsFinder,
@@ -404,7 +422,11 @@ func (m *ModelManagerAPI) CreateModel(ctx context.Context, args params.ModelCrea
 
 	// Ensure that we place the model in the known model list table on the
 	// controller.
+<<<<<<< Updated upstream
 	if err := m.modelManagerService.Create(ctx, coremodel.UUID(createdModel.UUID())); err != nil {
+=======
+	if err := m.modelManagerService.Create(ctx, domainmodel.UUID(createdModel.UUID())); err != nil {
+>>>>>>> Stashed changes
 		return result, errors.Trace(err)
 	}
 
@@ -899,7 +921,11 @@ func (m *ModelManagerAPI) DestroyModels(ctx context.Context, args params.Destroy
 		// cause too much fallout. If we're unable to delete the model from the
 		// database, then we won't be able to create a new model with the same
 		// model uuid as there is a UNIQUE constraint on the model uuid column.
+<<<<<<< Updated upstream
 		err = m.modelService.DeleteModel(ctx, coremodel.UUID(stModel.UUID()))
+=======
+		err = m.modelService.DeleteModel(ctx, domainmodel.UUID(stModel.UUID()))
+>>>>>>> Stashed changes
 		if err != nil && errors.Is(err, modelerrors.NotFound) {
 			return nil
 		}
@@ -1076,10 +1102,43 @@ func (m *ModelManagerAPI) getModelInfo(ctx context.Context, tag names.ModelTag, 
 		}
 	}
 	if withSecrets && canSeeMachinesAndSecrets {
-		if info.SecretBackends, err = commonsecrets.BackendSummaryInfo(
-			m.state, st, st, st.ControllerUUID(), false, commonsecrets.BackendFilter{},
+		cld, err := m.cloudService.Get(ctx, model.CloudName())
+		if err != nil {
+			return params.ModelInfo{}, errors.Trace(err)
+		}
+		tag, ok := model.CloudCredentialTag()
+		if !ok {
+			return params.ModelInfo{}, errors.NotValidf("cloud credential for %s is empty", model.UUID())
+		}
+		cred, err := m.credentialService.CloudCredential(ctx, credential.IdFromTag(tag))
+		if err != nil {
+			return params.ModelInfo{}, errors.Trace(err)
+		}
+
+		var result []secretbackend.SecretBackendInfo
+		if result, err = m.secretbackend.BackendSummaryInfo(
+			ctx, domainmodel.UUID(model.UUID()), m.modelService, *cld, cred,
+			false, secretbackend.SecretBackendFilter{
+				Names: []string{
+					// TODO: Get all the secret backends for the model.
+				},
+			},
 		); shouldErr(err) {
 			return params.ModelInfo{}, err
+		}
+		for _, backend := range result {
+			info.SecretBackends = append(info.SecretBackends, params.SecretBackendResult{
+				ID:         backend.ID,
+				NumSecrets: backend.NumSecrets,
+				Status:     backend.Status,
+				Message:    backend.Message,
+				Result: params.SecretBackend{
+					Name:                backend.Name,
+					BackendType:         backend.BackendType,
+					TokenRotateInterval: backend.TokenRotateInterval,
+					Config:              backend.Config,
+				},
+			})
 		}
 		// Don't expose the id.
 		for i := range info.SecretBackends {

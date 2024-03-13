@@ -4,22 +4,51 @@
 package secretbackends
 
 import (
+	"context"
+
 	"github.com/juju/collections/set"
 	"github.com/juju/errors"
+	"github.com/juju/names/v5"
 
 	"github.com/juju/juju/apiserver/common"
+	"github.com/juju/juju/cloud"
+	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/secrets"
+	"github.com/juju/juju/domain/credential"
+	"github.com/juju/juju/domain/model"
+	"github.com/juju/juju/domain/secretbackend"
+	"github.com/juju/juju/environs/config"
 	"github.com/juju/juju/state"
 )
 
-// SecretsBackendState is used to access the juju state database.
-type SecretsBackendState interface {
-	CreateSecretBackend(params state.CreateSecretBackendParams) (string, error)
-	UpdateSecretBackend(params state.UpdateSecretBackendParams) error
-	DeleteSecretBackend(name string, force bool) error
-	ListSecretBackends() ([]*secrets.SecretBackend, error)
-	GetSecretBackend(name string) (*secrets.SecretBackend, error)
-	GetSecretBackendByID(ID string) (*secrets.SecretBackend, error)
+// SecretsBackendService is an interface for interacting with secret backend service.
+type SecretsBackendService interface {
+	CreateSecretBackend(context.Context, secrets.SecretBackend) error
+	UpdateSecretBackend(context.Context, secrets.SecretBackend, bool, ...string) error
+	DeleteSecretBackend(context.Context, string, bool) error
+	GetSecretBackendByName(context.Context, string) (*secrets.SecretBackend, error)
+
+	BackendSummaryInfo(
+		ctx context.Context,
+		modelUUID model.UUID, model secretbackend.ModelGetter, cloud cloud.Cloud, cred cloud.Credential,
+		reveal bool, filter secretbackend.SecretBackendFilter,
+	) ([]secretbackend.SecretBackendInfo, error)
+}
+
+// CloudService provides access to clouds.
+type CloudService interface {
+	Get(ctx context.Context, name string) (*cloud.Cloud, error)
+}
+
+// CredentialService exposes State methods needed by credential manager.
+type CredentialService interface {
+	CloudCredential(ctx context.Context, id credential.ID) (cloud.Credential, error)
+}
+
+// ModelService provides access to model information.
+type ModelService interface {
+	GetModel(ctx context.Context, uuid model.UUID) (*coremodel.Model, error)
+	GetSecretBackend(ctx context.Context, modelUUID model.UUID) (model.SecretBackendIdentifier, error)
 }
 
 type SecretsState interface {
@@ -40,4 +69,11 @@ func (s *statePoolShim) GetModel(modelUUID string) (common.Model, func() bool, e
 		return nil, nil, errors.Trace(err)
 	}
 	return m, hp.Release, nil
+}
+
+type Model interface {
+	UUID() string
+	Config() (*config.Config, error)
+	CloudName() string
+	CloudCredentialTag() (names.CloudCredentialTag, bool)
 }

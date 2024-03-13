@@ -7,6 +7,7 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/juju/clock"
 	"github.com/juju/errors"
 	"github.com/juju/names/v5"
 
@@ -14,7 +15,11 @@ import (
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/caas"
+<<<<<<< Updated upstream
 	"github.com/juju/juju/environs"
+=======
+	"github.com/juju/juju/internal/secrets/provider"
+>>>>>>> Stashed changes
 	"github.com/juju/juju/state/stateenvirons"
 )
 
@@ -76,6 +81,9 @@ func newFacadeV10(ctx facade.ModelContext) (*ModelManagerAPI, error) {
 	apiUser, _ := auth.GetAuthTag().(names.UserTag)
 	backend := common.NewUserAwareModelManagerBackend(configSchemaSource, model, pool, apiUser)
 
+	secretBackendService := serviceFactory.SecretBackend(
+		clock.WallClock, model.ControllerUUID(), provider.Provider,
+	)
 	return NewModelManagerAPI(
 		backend.(StateBackend),
 		ctx.ModelExporter(backend),
@@ -84,6 +92,7 @@ func newFacadeV10(ctx facade.ModelContext) (*ModelManagerAPI, error) {
 		serviceFactory.Credential(),
 		serviceFactory.ModelManager(),
 		serviceFactory.Model(),
+		secretBackendService,
 		ctx.ObjectStore(),
 		configSchemaSource,
 		toolsFinder,

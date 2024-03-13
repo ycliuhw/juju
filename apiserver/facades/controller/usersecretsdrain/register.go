@@ -7,11 +7,14 @@ import (
 	stdcontext "context"
 	"reflect"
 
+	"github.com/juju/clock"
 	"github.com/juju/errors"
 
 	commonsecrets "github.com/juju/juju/apiserver/common/secrets"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
+	"github.com/juju/juju/domain/credential"
+	domainmodel "github.com/juju/juju/domain/model"
 	"github.com/juju/juju/internal/secrets/provider"
 	"github.com/juju/juju/state"
 )
@@ -37,8 +40,6 @@ func newUserSecretsDrainAPI(context facade.ModelContext) (*SecretsDrainAPI, erro
 		return nil, errors.Trace(err)
 	}
 	serviceFactory := context.ServiceFactory()
-	cloudService := serviceFactory.Cloud()
-	credentialSerivce := serviceFactory.Credential()
 
 	authTag := model.ModelTag()
 	commonDrainAPI, err := commonsecrets.NewSecretsDrainAPI(
@@ -55,16 +56,47 @@ func newUserSecretsDrainAPI(context facade.ModelContext) (*SecretsDrainAPI, erro
 		return nil, errors.Trace(err)
 	}
 
+	secretBackendAdminConfigGetter := func(stdCtx stdcontext.Context) (*provider.ModelBackendConfigInfo, error) {
+		cloudService := serviceFactory.Cloud()
+		credentialSerivce := serviceFactory.Credential()
+		modelService := serviceFactory.Model()
+		backendService := serviceFactory.SecretBackend(
+			clock.WallClock, model.ControllerUUID(), provider.Provider,
+		)
+		cld, err := cloudService.Get(stdCtx, model.CloudName())
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		tag, ok := model.CloudCredentialTag()
+		if !ok {
+			return nil, errors.NotValidf("cloud credential for %s is empty", model.UUID())
+		}
+		cred, err := credentialSerivce.CloudCredential(stdCtx, credential.IdFromTag(tag))
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
+		return backendService.GetSecretBackendConfigForAdmin(stdCtx, domainmodel.UUID(model.UUID()), modelService, *cld, cred)
+		// return secrets.AdminBackendConfigInfo(stdCtx, secrets.SecretsModel(model), cloudService, credentialSerivce)
+	}
+
 	secretBackendConfigGetter := func(ctx stdcontext.Context, backendIDs []string, wantAll bool) (*provider.ModelBackendConfigInfo, error) {
+		adminCfg, err := secretBackendAdminConfigGetter(ctx)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
 		return commonsecrets.BackendConfigInfo(
-			ctx, commonsecrets.SecretsModel(model), true, cloudService, credentialSerivce,
+			ctx, commonsecrets.SecretsModel(model), true, *adminCfg,
 			backendIDs, wantAll, authTag, leadershipChecker,
 		)
 	}
 	secretBackendDrainConfigGetter := func(ctx stdcontext.Context, backendID string) (*provider.ModelBackendConfigInfo, error) {
+		adminCfg, err := secretBackendAdminConfigGetter(ctx)
+		if err != nil {
+			return nil, errors.Trace(err)
+		}
 		return commonsecrets.DrainBackendConfigInfo(
 			ctx, backendID, commonsecrets.SecretsModel(model),
-			cloudService, credentialSerivce,
+			*adminCfg,
 			authTag, leadershipChecker,
 		)
 	}

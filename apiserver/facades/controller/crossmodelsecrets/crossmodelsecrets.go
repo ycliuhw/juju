@@ -4,6 +4,7 @@
 package crossmodelsecrets
 
 import (
+	"context"
 	stdcontext "context"
 	"fmt"
 	"sync"
@@ -23,7 +24,10 @@ import (
 	"github.com/juju/juju/rpc/params"
 )
 
-type backendConfigGetter func(ctx stdcontext.Context, modelUUID string, sameController bool, backendID string, consumer names.Tag) (*provider.ModelBackendConfigInfo, error)
+type backendConfigGetter func(
+	ctx stdcontext.Context, modelUUID string, sameController bool,
+	adminModelCfg provider.ModelBackendConfigInfo, backendID string, consumer names.Tag,
+) (*provider.ModelBackendConfigInfo, error)
 type secretStateGetter func(modelUUID string) (SecretsState, SecretsConsumer, func() bool, error)
 
 // CrossModelSecretsAPI provides access to the CrossModelSecrets API facade.
@@ -35,11 +39,12 @@ type CrossModelSecretsAPI struct {
 	controllerUUID string
 	modelUUID      string
 
-	secretsStateGetter  secretStateGetter
-	backendConfigGetter backendConfigGetter
-	crossModelState     CrossModelState
-	stateBackend        StateBackend
-	logger              loggo.Logger
+	secretsStateGetter             secretStateGetter
+	backendConfigGetter            backendConfigGetter
+	secretBackendAdminConfigGetter func(stdCtx context.Context) (*provider.ModelBackendConfigInfo, error)
+	crossModelState                CrossModelState
+	stateBackend                   StateBackend
+	logger                         loggo.Logger
 }
 
 // NewCrossModelSecretsAPI returns a new server-side CrossModelSecretsAPI facade.
@@ -50,20 +55,22 @@ func NewCrossModelSecretsAPI(
 	modelUUID string,
 	secretsStateGetter secretStateGetter,
 	backendConfigGetter backendConfigGetter,
+	secretBackendAdminConfigGetter func(stdCtx context.Context) (*provider.ModelBackendConfigInfo, error),
 	crossModelState CrossModelState,
 	stateBackend StateBackend,
 	logger loggo.Logger,
 ) (*CrossModelSecretsAPI, error) {
 	return &CrossModelSecretsAPI{
-		resources:           resources,
-		authCtxt:            authContext,
-		controllerUUID:      controllerUUID,
-		modelUUID:           modelUUID,
-		secretsStateGetter:  secretsStateGetter,
-		backendConfigGetter: backendConfigGetter,
-		crossModelState:     crossModelState,
-		stateBackend:        stateBackend,
-		logger:              logger,
+		resources:                      resources,
+		authCtxt:                       authContext,
+		controllerUUID:                 controllerUUID,
+		modelUUID:                      modelUUID,
+		secretsStateGetter:             secretsStateGetter,
+		backendConfigGetter:            backendConfigGetter,
+		secretBackendAdminConfigGetter: secretBackendAdminConfigGetter,
+		crossModelState:                crossModelState,
+		stateBackend:                   stateBackend,
+		logger:                         logger,
 	}, nil
 }
 
@@ -263,7 +270,11 @@ func (s *CrossModelSecretsAPI) updateConsumedRevision(secretsState SecretsState,
 }
 
 func (s *CrossModelSecretsAPI) getBackend(ctx stdcontext.Context, modelUUID string, sameController bool, backendID string, consumer names.Tag) (*params.SecretBackendConfigResult, error) {
-	cfgInfo, err := s.backendConfigGetter(ctx, modelUUID, sameController, backendID, consumer)
+	adminConfig, err := s.secretBackendAdminConfigGetter(ctx)
+	if err != nil {
+		return nil, errors.Trace(err)
+	}
+	cfgInfo, err := s.backendConfigGetter(ctx, modelUUID, sameController, *adminConfig, backendID, consumer)
 	if err != nil {
 		return nil, errors.Trace(err)
 	}

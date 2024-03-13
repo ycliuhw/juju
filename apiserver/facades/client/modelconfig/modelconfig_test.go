@@ -63,7 +63,7 @@ func (s *modelconfigSuite) SetUpTest(c *gc.C) {
 		},
 	}
 	var err error
-	s.api, err = modelconfig.NewModelConfigAPI(s.backend, &s.authorizer)
+	s.api, err = modelconfig.NewModelConfigAPI(&s.authorizer, s.backend, nil)
 	c.Assert(err, jc.ErrorIsNil)
 }
 

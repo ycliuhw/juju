@@ -12,6 +12,7 @@ package servicefactory
 import (
 	reflect "reflect"
 
+<<<<<<< Updated upstream
 	service "github.com/juju/juju/domain/annotation/service"
 	service0 "github.com/juju/juju/domain/application/service"
 	service1 "github.com/juju/juju/domain/autocert/service"
@@ -33,6 +34,29 @@ import (
 	service17 "github.com/juju/juju/domain/unit/service"
 	service18 "github.com/juju/juju/domain/upgrade/service"
 	service19 "github.com/juju/juju/domain/user/service"
+=======
+	clock "github.com/juju/clock"
+	service "github.com/juju/juju/domain/application/service"
+	service0 "github.com/juju/juju/domain/autocert/service"
+	service1 "github.com/juju/juju/domain/blockdevice/service"
+	service2 "github.com/juju/juju/domain/cloud/service"
+	service3 "github.com/juju/juju/domain/controllerconfig/service"
+	service4 "github.com/juju/juju/domain/controllernode/service"
+	service5 "github.com/juju/juju/domain/credential/service"
+	service6 "github.com/juju/juju/domain/externalcontroller/service"
+	service7 "github.com/juju/juju/domain/flag/service"
+	service8 "github.com/juju/juju/domain/machine/service"
+	service9 "github.com/juju/juju/domain/model/service"
+	service10 "github.com/juju/juju/domain/modelconfig/service"
+	service11 "github.com/juju/juju/domain/modeldefaults/service"
+	service12 "github.com/juju/juju/domain/modelmanager/service"
+	service13 "github.com/juju/juju/domain/network/service"
+	service14 "github.com/juju/juju/domain/objectstore/service"
+	service15 "github.com/juju/juju/domain/secretbackend/service"
+	service16 "github.com/juju/juju/domain/unit/service"
+	service17 "github.com/juju/juju/domain/upgrade/service"
+	service18 "github.com/juju/juju/domain/user/service"
+>>>>>>> Stashed changes
 	servicefactory "github.com/juju/juju/internal/servicefactory"
 	storage "github.com/juju/juju/internal/storage"
 	gomock "go.uber.org/mock/gomock"
@@ -215,11 +239,32 @@ func (mr *MockControllerServiceFactoryMockRecorder) ModelManager() *gomock.Call 
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ModelManager", reflect.TypeOf((*MockControllerServiceFactory)(nil).ModelManager))
 }
 
+// SecretBackend mocks base method.
+func (m *MockControllerServiceFactory) SecretBackend(arg0 clock.Clock, arg1 string, arg2 service15.SecretProviderRegistry) *service15.WatchableService {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SecretBackend", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*service15.WatchableService)
+	return ret0
+}
+
+// SecretBackend indicates an expected call of SecretBackend.
+func (mr *MockControllerServiceFactoryMockRecorder) SecretBackend(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SecretBackend", reflect.TypeOf((*MockControllerServiceFactory)(nil).SecretBackend), arg0, arg1, arg2)
+}
+
 // Upgrade mocks base method.
+<<<<<<< Updated upstream
 func (m *MockControllerServiceFactory) Upgrade() *service18.WatchableService {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Upgrade")
 	ret0, _ := ret[0].(*service18.WatchableService)
+=======
+func (m *MockControllerServiceFactory) Upgrade() *service17.WatchableService {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Upgrade")
+	ret0, _ := ret[0].(*service17.WatchableService)
+>>>>>>> Stashed changes
 	return ret0
 }
 
@@ -230,10 +275,17 @@ func (mr *MockControllerServiceFactoryMockRecorder) Upgrade() *gomock.Call {
 }
 
 // User mocks base method.
+<<<<<<< Updated upstream
 func (m *MockControllerServiceFactory) User() *service19.Service {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "User")
 	ret0, _ := ret[0].(*service19.Service)
+=======
+func (m *MockControllerServiceFactory) User() *service18.Service {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "User")
+	ret0, _ := ret[0].(*service18.Service)
+>>>>>>> Stashed changes
 	return ret0
 }
 
@@ -379,10 +431,17 @@ func (mr *MockModelServiceFactoryMockRecorder) Storage(arg0 any) *gomock.Call {
 }
 
 // Unit mocks base method.
+<<<<<<< Updated upstream
 func (m *MockModelServiceFactory) Unit() *service17.Service {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unit")
 	ret0, _ := ret[0].(*service17.Service)
+=======
+func (m *MockModelServiceFactory) Unit() *service16.Service {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unit")
+	ret0, _ := ret[0].(*service16.Service)
+>>>>>>> Stashed changes
 	return ret0
 }
 
@@ -653,6 +712,20 @@ func (mr *MockServiceFactoryMockRecorder) ObjectStore() *gomock.Call {
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "ObjectStore", reflect.TypeOf((*MockServiceFactory)(nil).ObjectStore))
 }
 
+// SecretBackend mocks base method.
+func (m *MockServiceFactory) SecretBackend(arg0 clock.Clock, arg1 string, arg2 service15.SecretProviderRegistry) *service15.WatchableService {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "SecretBackend", arg0, arg1, arg2)
+	ret0, _ := ret[0].(*service15.WatchableService)
+	return ret0
+}
+
+// SecretBackend indicates an expected call of SecretBackend.
+func (mr *MockServiceFactoryMockRecorder) SecretBackend(arg0, arg1, arg2 any) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "SecretBackend", reflect.TypeOf((*MockServiceFactory)(nil).SecretBackend), arg0, arg1, arg2)
+}
+
 // Space mocks base method.
 func (m *MockServiceFactory) Space() *service14.SpaceService {
 	m.ctrl.T.Helper()
@@ -682,10 +755,17 @@ func (mr *MockServiceFactoryMockRecorder) Storage(arg0 any) *gomock.Call {
 }
 
 // Unit mocks base method.
+<<<<<<< Updated upstream
 func (m *MockServiceFactory) Unit() *service17.Service {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Unit")
 	ret0, _ := ret[0].(*service17.Service)
+=======
+func (m *MockServiceFactory) Unit() *service16.Service {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Unit")
+	ret0, _ := ret[0].(*service16.Service)
+>>>>>>> Stashed changes
 	return ret0
 }
 
@@ -696,10 +776,17 @@ func (mr *MockServiceFactoryMockRecorder) Unit() *gomock.Call {
 }
 
 // Upgrade mocks base method.
+<<<<<<< Updated upstream
 func (m *MockServiceFactory) Upgrade() *service18.WatchableService {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "Upgrade")
 	ret0, _ := ret[0].(*service18.WatchableService)
+=======
+func (m *MockServiceFactory) Upgrade() *service17.WatchableService {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "Upgrade")
+	ret0, _ := ret[0].(*service17.WatchableService)
+>>>>>>> Stashed changes
 	return ret0
 }
 
@@ -710,10 +797,17 @@ func (mr *MockServiceFactoryMockRecorder) Upgrade() *gomock.Call {
 }
 
 // User mocks base method.
+<<<<<<< Updated upstream
 func (m *MockServiceFactory) User() *service19.Service {
 	m.ctrl.T.Helper()
 	ret := m.ctrl.Call(m, "User")
 	ret0, _ := ret[0].(*service19.Service)
+=======
+func (m *MockServiceFactory) User() *service18.Service {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "User")
+	ret0, _ := ret[0].(*service18.Service)
+>>>>>>> Stashed changes
 	return ret0
 }
 

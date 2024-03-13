@@ -7,10 +7,12 @@ import (
 	"context"
 	"reflect"
 
+	"github.com/juju/clock"
 	"github.com/juju/errors"
 
 	"github.com/juju/juju/apiserver/facade"
 	"github.com/juju/juju/environs"
+	"github.com/juju/juju/internal/secrets/provider"
 )
 
 // Register is called to expose a package of facades onto a given registry.
@@ -30,6 +32,9 @@ func newFacadeV3(ctx facade.ModelContext) (*ModelConfigAPIV3, error) {
 	}
 
 	configSchemaSourceGetter := environs.ProviderConfigSchemaSource(ctx.ServiceFactory().Cloud())
-
-	return NewModelConfigAPI(NewStateBackend(model, configSchemaSourceGetter), auth)
+	sf := ctx.ServiceFactory()
+	secretBackendService := sf.SecretBackend(
+		clock.WallClock, model.ControllerUUID(), provider.Provider,
+	)
+	return NewModelConfigAPI(auth, NewStateBackend(model, configSchemaSourceGetter), secretBackendService)
 }

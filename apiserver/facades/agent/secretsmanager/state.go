@@ -4,12 +4,15 @@
 package secretsmanager
 
 import (
+	"context"
 	"time"
 
 	"github.com/juju/names/v5"
 	"gopkg.in/macaroon.v2"
 
+	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/secrets"
+	"github.com/juju/juju/domain/model"
 	"github.com/juju/juju/state"
 )
 
@@ -49,4 +52,20 @@ type CrossModelState interface {
 	GetToken(entity names.Tag) (string, error)
 	GetRemoteEntity(token string) (names.Tag, error)
 	GetMacaroon(entity names.Tag) (*macaroon.Macaroon, error)
+}
+
+// // SecretBackendService is an interface for interacting with secret backend service.
+// type SecretBackendService interface {
+// 	// GetSecretBackendConfigLegacy(ctx context.Context) (*provider.ModelBackendConfigInfo, error)
+// 	// GetSecretBackendConfig(ctx context.Context, backendID string) (*provider.ModelBackendConfigInfo, error)
+// 	GetSecretBackendConfigForAdmin(
+// 		context.Context, *config.Config, cloud.Cloud, cloud.Credential,
+// 	) (*provider.ModelBackendConfigInfo, error)
+// 	// GetSecretBackendConfigForDrain(context.Context, string) (*provider.ModelBackendConfigInfo, error)
+// }
+
+// ModelService provides methods for working with models for backend service.
+type ModelService interface {
+	GetModel(ctx context.Context, uuid coremodel.UUID) (*coremodel.Model, error)
+	GetSecretBackend(ctx context.Context, modelUUID coremodel.UUID) (model.SecretBackendIdentifier, error)
 }
