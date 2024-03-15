@@ -30,14 +30,14 @@ type SecretsBackendService interface {
 
 	BackendSummaryInfo(
 		ctx context.Context,
-		modelUUID model.UUID, model secretbackend.ModelGetter, cloud cloud.Cloud, cred cloud.Credential,
+		modelUUID coremodel.UUID, model secretbackend.ModelGetter, cloud cloud.Cloud, cred cloud.Credential,
 		reveal bool, filter secretbackend.SecretBackendFilter,
-	) ([]secretbackend.SecretBackendInfo, error)
+	) ([]*secretbackend.SecretBackendInfo, error)
 }
 
 // CloudService provides access to clouds.
 type CloudService interface {
-	Get(ctx context.Context, name string) (*cloud.Cloud, error)
+	Cloud(ctx context.Context, name string) (*cloud.Cloud, error)
 }
 
 // CredentialService exposes State methods needed by credential manager.
@@ -47,8 +47,8 @@ type CredentialService interface {
 
 // ModelService provides access to model information.
 type ModelService interface {
-	GetModel(ctx context.Context, uuid model.UUID) (*coremodel.Model, error)
-	GetSecretBackend(ctx context.Context, modelUUID model.UUID) (model.SecretBackendIdentifier, error)
+	GetModel(ctx context.Context, uuid coremodel.UUID) (*coremodel.Model, error)
+	GetSecretBackend(ctx context.Context, modelUUID coremodel.UUID) (model.SecretBackendIdentifier, error)
 }
 
 type SecretsState interface {

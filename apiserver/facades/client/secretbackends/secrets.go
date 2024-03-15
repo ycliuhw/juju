@@ -12,10 +12,10 @@ import (
 
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
+	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/permission"
 	"github.com/juju/juju/core/secrets"
 	"github.com/juju/juju/domain/credential"
-	"github.com/juju/juju/domain/model"
 	"github.com/juju/juju/domain/secretbackend"
 	"github.com/juju/juju/internal/secrets/provider"
 	_ "github.com/juju/juju/internal/secrets/provider/all"
@@ -220,7 +220,7 @@ func (s *SecretBackendsAPI) ListSecretBackends(ctx context.Context, arg params.L
 		}
 	}
 
-	cld, err := s.cloudService.Get(ctx, s.model.CloudName())
+	cld, err := s.cloudService.Cloud(ctx, s.model.CloudName())
 	if err != nil {
 		return result, errors.Trace(err)
 	}
@@ -233,7 +233,7 @@ func (s *SecretBackendsAPI) ListSecretBackends(ctx context.Context, arg params.L
 		return result, errors.Trace(err)
 	}
 	infos, err := s.backendService.BackendSummaryInfo(
-		ctx, model.UUID(s.model.UUID()), s.modelService, *cld, cred, arg.Reveal, secretbackend.SecretBackendFilter{
+		ctx, coremodel.UUID(s.model.UUID()), s.modelService, *cld, cred, arg.Reveal, secretbackend.SecretBackendFilter{
 			Names: arg.Names, All: true,
 		},
 	)

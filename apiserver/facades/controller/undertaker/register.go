@@ -13,8 +13,8 @@ import (
 	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/apiserver/common/cloudspec"
 	"github.com/juju/juju/apiserver/facade"
+	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/domain/credential"
-	domainmodel "github.com/juju/juju/domain/model"
 	"github.com/juju/juju/internal/secrets/provider"
 )
 
@@ -40,7 +40,7 @@ func newUndertakerFacade(ctx facade.ModelContext) (*UndertakerAPI, error) {
 		backendService := serviceFactory.SecretBackend(
 			clock.WallClock, model.ControllerUUID(), provider.Provider,
 		)
-		cld, err := cloudService.Get(ctx, model.CloudName())
+		cld, err := cloudService.Cloud(ctx, model.CloudName())
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -52,7 +52,7 @@ func newUndertakerFacade(ctx facade.ModelContext) (*UndertakerAPI, error) {
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		return backendService.GetSecretBackendConfigForAdmin(ctx, domainmodel.UUID(model.UUID()), modelService, *cld, cred)
+		return backendService.GetSecretBackendConfigForAdmin(ctx, coremodel.UUID(model.UUID()), modelService, *cld, cred)
 		// return secrets.AdminBackendConfigInfo(ctx, secrets.SecretsModel(model), cloudService, credentialService)
 	}
 	cloudSpecAPI := cloudspec.NewCloudSpec(

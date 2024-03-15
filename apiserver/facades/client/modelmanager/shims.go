@@ -11,8 +11,8 @@ import (
 
 	"github.com/juju/juju/apiserver/common"
 	"github.com/juju/juju/cloud"
+	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/core/network"
-	"github.com/juju/juju/domain/model"
 	"github.com/juju/juju/domain/secretbackend"
 	"github.com/juju/juju/environs/space"
 )
@@ -88,7 +88,7 @@ func (s credentialStateShim) CloudCredentialTag() (names.CloudCredentialTag, boo
 type SecretBackendService interface {
 	BackendSummaryInfo(
 		ctx context.Context,
-		_ model.UUID, _ secretbackend.ModelGetter, _ cloud.Cloud, _ cloud.Credential,
+		_ coremodel.UUID, _ secretbackend.ModelGetter, _ cloud.Cloud, _ cloud.Credential,
 		reveal bool, _ secretbackend.SecretBackendFilter,
-	) ([]secretbackend.SecretBackendInfo, error)
+	) ([]*secretbackend.SecretBackendInfo, error)
 }

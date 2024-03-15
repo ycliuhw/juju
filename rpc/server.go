@@ -7,7 +7,6 @@ import (
 	"context"
 	"io"
 	"reflect"
-	"runtime/debug"
 	"strings"
 	"sync"
 
@@ -594,13 +593,13 @@ func (conn *Conn) runRequest(
 	recorder Recorder,
 ) {
 	// If the request causes a panic, ensure we log that before closing the connection.
-	defer func() {
-		if panicResult := recover(); panicResult != nil {
-			logger.Criticalf(
-				"panic running request %+v with arg %+v: %v\n%v", req, arg, panicResult, string(debug.Stack()))
-			_ = conn.writeErrorResponse(&req.hdr, errors.Errorf("%v", panicResult), recorder)
-		}
-	}()
+	// defer func() {
+	// 	if panicResult := recover(); panicResult != nil {
+	// 		logger.Criticalf(
+	// 			"panic running request %+v with arg %+v: %v\n%v", req, arg, panicResult, string(debug.Stack()))
+	// 		_ = conn.writeErrorResponse(&req.hdr, errors.Errorf("%v", panicResult), recorder)
+	// 	}
+	// }()
 	defer conn.srvPending.Done()
 
 	// Create a request-specific context, cancelled when the

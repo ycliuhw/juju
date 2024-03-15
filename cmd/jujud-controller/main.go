@@ -11,7 +11,6 @@ import (
 	"math/rand"
 	"os"
 	"path/filepath"
-	"runtime"
 	"strings"
 	"time"
 
@@ -307,14 +306,14 @@ func main() {
 // Main is not redundant with main(), because it provides an entry point
 // for testing with arbitrary command line arguments.
 func Main(args []string) int {
-	defer func() {
-		if r := recover(); r != nil {
-			buf := make([]byte, 4096)
-			buf = buf[:runtime.Stack(buf, false)]
-			logger.Criticalf("Unhandled panic: \n%v\n%s", r, buf)
-			os.Exit(exit_panic)
-		}
-	}()
+	// defer func() {
+	// 	if r := recover(); r != nil {
+	// 		buf := make([]byte, 4096)
+	// 		buf = buf[:runtime.Stack(buf, false)]
+	// 		logger.Criticalf("Unhandled panic: \n%v\n%s", r, buf)
+	// 		os.Exit(exit_panic)
+	// 	}
+	// }()
 
 	ctx, err := cmd.DefaultContext()
 	if err != nil {

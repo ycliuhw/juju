@@ -13,8 +13,8 @@ import (
 	commonsecrets "github.com/juju/juju/apiserver/common/secrets"
 	apiservererrors "github.com/juju/juju/apiserver/errors"
 	"github.com/juju/juju/apiserver/facade"
+	coremodel "github.com/juju/juju/core/model"
 	"github.com/juju/juju/domain/credential"
-	domainmodel "github.com/juju/juju/domain/model"
 	"github.com/juju/juju/internal/secrets/provider"
 	"github.com/juju/juju/state"
 )
@@ -63,7 +63,7 @@ func newUserSecretsDrainAPI(context facade.ModelContext) (*SecretsDrainAPI, erro
 		backendService := serviceFactory.SecretBackend(
 			clock.WallClock, model.ControllerUUID(), provider.Provider,
 		)
-		cld, err := cloudService.Get(stdCtx, model.CloudName())
+		cld, err := cloudService.Cloud(stdCtx, model.CloudName())
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
@@ -75,7 +75,7 @@ func newUserSecretsDrainAPI(context facade.ModelContext) (*SecretsDrainAPI, erro
 		if err != nil {
 			return nil, errors.Trace(err)
 		}
-		return backendService.GetSecretBackendConfigForAdmin(stdCtx, domainmodel.UUID(model.UUID()), modelService, *cld, cred)
+		return backendService.GetSecretBackendConfigForAdmin(stdCtx, coremodel.UUID(model.UUID()), modelService, *cld, cred)
 		// return secrets.AdminBackendConfigInfo(stdCtx, secrets.SecretsModel(model), cloudService, credentialSerivce)
 	}
 
