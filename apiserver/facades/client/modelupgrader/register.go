@@ -34,7 +34,6 @@ func newFacadeV1(ctx facade.ModelContext) (*ModelUpgraderAPI, error) {
 		return nil, apiservererrors.ErrPerm
 	}
 
-	st := ctx.State()
 	pool := ctx.StatePool()
 
 	systemState, err := ctx.StatePool().SystemState()
@@ -51,8 +50,7 @@ func newFacadeV1(ctx facade.ModelContext) (*ModelUpgraderAPI, error) {
 
 	urlGetter := common.NewToolsURLGetter(ctx.ModelUUID().String(), systemState)
 	toolsFinder := common.NewToolsFinder(
-		controllerConfigService, st, urlGetter,
-		ctx.ControllerObjectStore(),
+		controllerConfigService, urlGetter,
 		domainServices.AgentBinary(),
 	)
 

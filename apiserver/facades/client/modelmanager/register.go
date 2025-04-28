@@ -68,8 +68,7 @@ func newFacadeV10(stdCtx context.Context, ctx facade.MultiModelContext) (*ModelM
 
 	urlGetter := common.NewToolsURLGetter(modelUUID, systemState)
 	toolsFinder := common.NewToolsFinder(
-		controllerConfigService, st, urlGetter,
-		ctx.ControllerObjectStore(),
+		controllerConfigService, urlGetter,
 		domainServices.AgentBinary(),
 	)
 
