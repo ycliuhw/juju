@@ -139,6 +139,9 @@ func (s *StorageAPI) UnitStorageAttachments(ctx context.Context, args params.Ent
 
 // DestroyUnitStorageAttachments marks each storage attachment of the
 // specified units as Dying.
+// Deprecated: this method is no longer used and will be removed in a future version.
+// The storage attachment lifecycle is now managed by the removal process.
+// The uniter no longer needs to set the storage attachment to dying itself.
 func (s *StorageAPI) DestroyUnitStorageAttachments(ctx context.Context, args params.Entities) (params.ErrorResults, error) {
 	result := params.ErrorResults{
 		Results: make([]params.ErrorResult, len(args.Entities)),

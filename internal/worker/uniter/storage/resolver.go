@@ -29,7 +29,6 @@ type StorageResolverOperations interface {
 type storageResolver struct {
 	logger    logger.Logger
 	storage   *Attachments
-	dying     bool
 	life      map[names.StorageTag]life.Value
 	modelType model.ModelType
 }
@@ -51,21 +50,6 @@ func (s *storageResolver) NextOp(
 	remoteState remotestate.Snapshot,
 	opFactory operation.Factory,
 ) (operation.Operation, error) {
-
-	if remoteState.Life == life.Dying {
-		// The unit is dying, so destroy all of its storage.
-		if !s.dying {
-			if err := s.storage.SetDying(ctx); err != nil {
-				return nil, errors.Trace(err)
-			}
-			s.dying = true
-		}
-		for tag, snap := range remoteState.Storage {
-			snap.Life = life.Dying
-			remoteState.Storage[tag] = snap
-		}
-	}
-
 	if err := s.maybeShortCircuitRemoval(ctx, remoteState.Storage); err != nil {
 		return nil, errors.Trace(err)
 	}
