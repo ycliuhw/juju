@@ -1,6 +1,6 @@
 module github.com/juju/juju
 
-go 1.18
+go 1.24.0
 
 require (
 	github.com/Azure/azure-sdk-for-go v62.2.0+incompatible
@@ -208,7 +208,7 @@ require (
 	golang.org/x/mod v0.6.0-dev.0.20220106191415-9b9b3d81d5e3 // indirect
 	golang.org/x/term v0.0.0-20210927222741-03fcf44c2211 // indirect
 	golang.org/x/text v0.3.7 // indirect
-	golang.org/x/time v0.0.0-20210723032227-1f47c861a9ac // indirect
+	golang.org/x/time v0.13.0 // indirect
 	golang.org/x/xerrors v0.0.0-20220411194840-2f41105eb62f // indirect
 	google.golang.org/appengine v1.6.7 // indirect
 	google.golang.org/genproto v0.0.0-20220429170224-98d788798c3e // indirect
